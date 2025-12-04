@@ -1,9 +1,19 @@
 """yfinance를 사용한 데이터 수집 서비스"""
+import os
 import yfinance as yf
 import pandas as pd
+import httpx
 from datetime import date, timedelta
 from functools import lru_cache
 from typing import Optional
+from dotenv import load_dotenv
+
+# .env 파일 로드
+load_dotenv()
+
+# Financial Modeling Prep API 설정
+FMP_API_KEY = os.getenv("FMP_API_KEY", "")
+FMP_BASE_URL = "https://financialmodelingprep.com/api/v3"
 
 
 # 인기 ETF 목록 (검색용)
@@ -48,15 +58,36 @@ class DataFetcher:
 
     def __init__(self):
         self.etf_list = POPULAR_ETFS
+        self._http_client = None
+
+    @property
+    def http_client(self):
+        if self._http_client is None:
+            self._http_client = httpx.Client(timeout=10.0)
+        return self._http_client
 
     def search_etf(self, query: str) -> list[dict]:
-        """ETF 검색"""
+        """ETF 검색 (로컬 + FMP API 하이브리드)"""
         query = query.upper().strip()
         results = []
 
+        # 1. 로컬 목록에서 먼저 검색 (빠름)
         for etf in self.etf_list:
             if query in etf["symbol"] or query.lower() in etf["name"].lower():
                 results.append(etf)
+
+        # 2. FMP API로 추가 검색 (API 키가 있을 때만)
+        if FMP_API_KEY and len(results) < 10:
+            try:
+                fmp_results = self._search_etf_fmp(query)
+                # 중복 제거하며 추가
+                existing_symbols = {r["symbol"] for r in results}
+                for etf in fmp_results:
+                    if etf["symbol"] not in existing_symbols:
+                        results.append(etf)
+                        existing_symbols.add(etf["symbol"])
+            except Exception:
+                pass  # API 실패 시 로컬 결과만 반환
 
         # 정확한 매칭을 먼저 정렬
         results.sort(key=lambda x: (
@@ -65,6 +96,26 @@ class DataFetcher:
         ))
 
         return results[:20]  # 최대 20개
+
+    def _search_etf_fmp(self, query: str) -> list[dict]:
+        """Financial Modeling Prep API로 ETF 검색"""
+        url = f"{FMP_BASE_URL}/search"
+        params = {
+            "query": query,
+            "limit": 20,
+            "exchange": "ETF",
+            "apikey": FMP_API_KEY
+        }
+
+        response = self.http_client.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        return [
+            {"symbol": item["symbol"], "name": item["name"]}
+            for item in data
+            if item.get("symbol") and item.get("name")
+        ]
 
     def get_etf_info(self, symbol: str) -> Optional[dict]:
         """ETF 정보 조회"""
