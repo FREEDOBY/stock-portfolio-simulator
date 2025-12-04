@@ -18,6 +18,15 @@ export const getETFInfo = async (symbol: string): Promise<ETFInfo> => {
   return response.data;
 };
 
+export const validateSymbol = async (symbol: string): Promise<ETFInfo | null> => {
+  try {
+    const response = await api.get(`/etf/${symbol}`);
+    return response.data;
+  } catch {
+    return null;
+  }
+};
+
 export const runBacktest = async (request: BacktestRequest): Promise<BacktestResult> => {
   const response = await api.post('/backtest', request);
   return response.data;

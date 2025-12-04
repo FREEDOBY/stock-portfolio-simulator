@@ -123,9 +123,19 @@ class DataFetcher:
             ticker = yf.Ticker(symbol)
             info = ticker.info
 
+            # yfinance가 유효하지 않은 심볼도 빈 info를 반환할 수 있음
+            # longName이나 shortName이 있어야 유효한 종목
+            name = info.get("longName") or info.get("shortName")
+            if not name:
+                # 로컬 목록에서 검색
+                for etf in self.etf_list:
+                    if etf["symbol"] == symbol.upper():
+                        return {**etf, "expense_ratio": None}
+                return None
+
             return {
                 "symbol": symbol.upper(),
-                "name": info.get("longName") or info.get("shortName") or symbol,
+                "name": name,
                 "expense_ratio": info.get("annualReportExpenseRatio")
             }
         except Exception:
