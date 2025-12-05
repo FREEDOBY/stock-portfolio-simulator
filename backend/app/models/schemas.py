@@ -2,6 +2,34 @@
 from pydantic import BaseModel, Field
 from datetime import date
 from typing import Optional
+from enum import Enum
+
+
+class InvestmentType(str, Enum):
+    """투자 방식"""
+    LUMP_SUM = "lump_sum"  # 거치식
+    DCA = "dca"            # 적립식
+
+
+class DCAFrequency(str, Enum):
+    """적립식 투자 주기"""
+    DAILY = "daily"        # 매일
+    WEEKLY = "weekly"      # 매주
+    BIWEEKLY = "biweekly"  # 격주
+    MONTHLY = "monthly"    # 매월
+
+
+class DCASettings(BaseModel):
+    """적립식 투자 설정"""
+    frequency: DCAFrequency = Field(
+        default=DCAFrequency.MONTHLY,
+        description="투자 주기"
+    )
+    amount: float = Field(
+        ...,
+        gt=0,
+        description="주기별 투자 금액"
+    )
 
 
 class PortfolioItem(BaseModel):
@@ -15,10 +43,18 @@ class BacktestRequest(BaseModel):
     portfolio: list[PortfolioItem] = Field(..., min_length=1)
     start_date: date
     end_date: date
-    initial_amount: float = Field(default=10000, gt=0)
+    initial_amount: float = Field(default=10000, ge=0)  # 적립식에서 0 허용
     rebalance: str = Field(
         default="quarterly",
         pattern="^(monthly|quarterly|yearly|none)$"
+    )
+    investment_type: InvestmentType = Field(
+        default=InvestmentType.LUMP_SUM,
+        description="투자 방식 (거치식/적립식)"
+    )
+    dca_settings: Optional[DCASettings] = Field(
+        default=None,
+        description="적립식 설정 (investment_type이 dca일 때 사용)"
     )
 
 
@@ -48,6 +84,7 @@ class BacktestResponse(BaseModel):
     benchmarks: dict[str, list[PortfolioValue]]
     metrics: BacktestMetrics
     benchmark_metrics: dict[str, BacktestMetrics]
+    total_invested: float = Field(..., description="총 투자 원금")
 
 
 class ETFInfo(BaseModel):

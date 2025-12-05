@@ -6,7 +6,8 @@ from ..models.schemas import (
     BacktestRequest,
     BacktestResponse,
     BacktestMetrics,
-    PortfolioValue
+    PortfolioValue,
+    InvestmentType
 )
 
 router = APIRouter(prefix="/api/backtest", tags=["Backtest"])
@@ -15,6 +16,14 @@ router = APIRouter(prefix="/api/backtest", tags=["Backtest"])
 @router.post("", response_model=BacktestResponse)
 async def run_backtest(request: BacktestRequest):
     """백테스트 실행"""
+    # DCA 설정 유효성 검증
+    if request.investment_type == InvestmentType.DCA:
+        if not request.dca_settings:
+            raise HTTPException(
+                status_code=400,
+                detail="DCA settings required for DCA investment type"
+            )
+
     try:
         result = backtest_engine.run_backtest(
             portfolio=[
@@ -24,7 +33,12 @@ async def run_backtest(request: BacktestRequest):
             start_date=request.start_date,
             end_date=request.end_date,
             initial_amount=request.initial_amount,
-            rebalance=request.rebalance
+            rebalance=request.rebalance,
+            investment_type=request.investment_type.value,
+            dca_settings=(
+                request.dca_settings.model_dump()
+                if request.dca_settings else None
+            )
         )
 
         return BacktestResponse(
@@ -39,7 +53,8 @@ async def run_backtest(request: BacktestRequest):
             benchmark_metrics={
                 symbol: BacktestMetrics(**metrics)
                 for symbol, metrics in result["benchmark_metrics"].items()
-            }
+            },
+            total_invested=result["total_invested"]
         )
 
     except ValueError as e:

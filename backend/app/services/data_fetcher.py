@@ -18,24 +18,49 @@ FMP_BASE_URL = "https://financialmodelingprep.com/api/v3"
 
 # 인기 ETF 목록 (검색용)
 POPULAR_ETFS = [
+    # 주요 지수 ETF
     {"symbol": "SPY", "name": "SPDR S&P 500 ETF Trust"},
     {"symbol": "QQQ", "name": "Invesco QQQ Trust"},
     {"symbol": "VTI", "name": "Vanguard Total Stock Market ETF"},
     {"symbol": "VOO", "name": "Vanguard S&P 500 ETF"},
+    {"symbol": "IVV", "name": "iShares Core S&P 500 ETF"},
+    {"symbol": "DIA", "name": "SPDR Dow Jones Industrial Average ETF"},
+    # 레버리지 ETF
+    {"symbol": "TQQQ", "name": "ProShares UltraPro QQQ"},
+    {"symbol": "QLD", "name": "ProShares Ultra QQQ"},
+    {"symbol": "SQQQ", "name": "ProShares UltraPro Short QQQ"},
+    {"symbol": "SOXL", "name": "Direxion Daily Semiconductor Bull 3X"},
+    {"symbol": "SOXS", "name": "Direxion Daily Semiconductor Bear 3X"},
+    {"symbol": "UPRO", "name": "ProShares UltraPro S&P500"},
+    {"symbol": "SPXL", "name": "Direxion Daily S&P 500 Bull 3X"},
+    {"symbol": "SSO", "name": "ProShares Ultra S&P500"},
+    {"symbol": "TECL", "name": "Direxion Daily Technology Bull 3X"},
+    {"symbol": "FNGU", "name": "MicroSectors FANG+ Index 3X Leveraged ETN"},
+    {"symbol": "LABU", "name": "Direxion Daily S&P Biotech Bull 3X"},
+    {"symbol": "TNA", "name": "Direxion Daily Small Cap Bull 3X"},
+    {"symbol": "UDOW", "name": "ProShares UltraPro Dow30"},
+    {"symbol": "TMF", "name": "Direxion Daily 20+ Year Treasury Bull 3X"},
+    # 국제 ETF
     {"symbol": "VEA", "name": "Vanguard FTSE Developed Markets ETF"},
     {"symbol": "VWO", "name": "Vanguard FTSE Emerging Markets ETF"},
-    {"symbol": "BND", "name": "Vanguard Total Bond Market ETF"},
-    {"symbol": "AGG", "name": "iShares Core U.S. Aggregate Bond ETF"},
-    {"symbol": "GLD", "name": "SPDR Gold Shares"},
-    {"symbol": "IWM", "name": "iShares Russell 2000 ETF"},
     {"symbol": "EFA", "name": "iShares MSCI EAFE ETF"},
     {"symbol": "EEM", "name": "iShares MSCI Emerging Markets ETF"},
+    {"symbol": "IEMG", "name": "iShares Core MSCI Emerging Markets ETF"},
+    {"symbol": "VXUS", "name": "Vanguard Total International Stock ETF"},
+    # 채권 ETF
+    {"symbol": "BND", "name": "Vanguard Total Bond Market ETF"},
+    {"symbol": "AGG", "name": "iShares Core U.S. Aggregate Bond ETF"},
     {"symbol": "TLT", "name": "iShares 20+ Year Treasury Bond ETF"},
     {"symbol": "LQD", "name": "iShares iBoxx $ Investment Grade Corporate Bond ETF"},
-    {"symbol": "VNQ", "name": "Vanguard Real Estate ETF"},
-    {"symbol": "SCHD", "name": "Schwab U.S. Dividend Equity ETF"},
-    {"symbol": "VIG", "name": "Vanguard Dividend Appreciation ETF"},
-    {"symbol": "ARKK", "name": "ARK Innovation ETF"},
+    {"symbol": "HYG", "name": "iShares iBoxx $ High Yield Corporate Bond ETF"},
+    {"symbol": "SHY", "name": "iShares 1-3 Year Treasury Bond ETF"},
+    {"symbol": "IEF", "name": "iShares 7-10 Year Treasury Bond ETF"},
+    # 원자재 ETF
+    {"symbol": "GLD", "name": "SPDR Gold Shares"},
+    {"symbol": "SLV", "name": "iShares Silver Trust"},
+    {"symbol": "USO", "name": "United States Oil Fund"},
+    {"symbol": "UNG", "name": "United States Natural Gas Fund"},
+    # 섹터 ETF
     {"symbol": "XLK", "name": "Technology Select Sector SPDR Fund"},
     {"symbol": "XLF", "name": "Financial Select Sector SPDR Fund"},
     {"symbol": "XLE", "name": "Energy Select Sector SPDR Fund"},
@@ -43,13 +68,29 @@ POPULAR_ETFS = [
     {"symbol": "XLI", "name": "Industrial Select Sector SPDR Fund"},
     {"symbol": "XLP", "name": "Consumer Staples Select Sector SPDR Fund"},
     {"symbol": "XLY", "name": "Consumer Discretionary Select Sector SPDR Fund"},
-    {"symbol": "IEMG", "name": "iShares Core MSCI Emerging Markets ETF"},
+    {"symbol": "XLU", "name": "Utilities Select Sector SPDR Fund"},
+    {"symbol": "XLB", "name": "Materials Select Sector SPDR Fund"},
+    {"symbol": "XLRE", "name": "Real Estate Select Sector SPDR Fund"},
+    # 스타일/사이즈 ETF
+    {"symbol": "IWM", "name": "iShares Russell 2000 ETF"},
     {"symbol": "IJH", "name": "iShares Core S&P Mid-Cap ETF"},
     {"symbol": "IJR", "name": "iShares Core S&P Small-Cap ETF"},
     {"symbol": "VB", "name": "Vanguard Small-Cap ETF"},
     {"symbol": "VTV", "name": "Vanguard Value ETF"},
     {"symbol": "VUG", "name": "Vanguard Growth ETF"},
-    {"symbol": "VXUS", "name": "Vanguard Total International Stock ETF"},
+    {"symbol": "VNQ", "name": "Vanguard Real Estate ETF"},
+    # 배당 ETF
+    {"symbol": "SCHD", "name": "Schwab U.S. Dividend Equity ETF"},
+    {"symbol": "VIG", "name": "Vanguard Dividend Appreciation ETF"},
+    {"symbol": "VYM", "name": "Vanguard High Dividend Yield ETF"},
+    {"symbol": "DVY", "name": "iShares Select Dividend ETF"},
+    # 테마 ETF
+    {"symbol": "ARKK", "name": "ARK Innovation ETF"},
+    {"symbol": "ARKG", "name": "ARK Genomic Revolution ETF"},
+    {"symbol": "ARKW", "name": "ARK Next Generation Internet ETF"},
+    {"symbol": "SMH", "name": "VanEck Semiconductor ETF"},
+    {"symbol": "SOXX", "name": "iShares Semiconductor ETF"},
+    {"symbol": "KWEB", "name": "KraneShares CSI China Internet ETF"},
 ]
 
 
@@ -67,27 +108,39 @@ class DataFetcher:
         return self._http_client
 
     def search_etf(self, query: str) -> list[dict]:
-        """ETF 검색 (로컬 + FMP API 하이브리드)"""
+        """ETF 검색 (로컬 + yfinance 하이브리드)"""
         query = query.upper().strip()
         results = []
+        existing_symbols = set()
 
         # 1. 로컬 목록에서 먼저 검색 (빠름)
         for etf in self.etf_list:
             if query in etf["symbol"] or query.lower() in etf["name"].lower():
                 results.append(etf)
+                existing_symbols.add(etf["symbol"])
 
-        # 2. FMP API로 추가 검색 (API 키가 있을 때만)
+        # 2. 정확한 심볼 매칭 시 yfinance로 직접 조회
+        if query not in existing_symbols and len(query) >= 2:
+            try:
+                ticker = yf.Ticker(query)
+                info = ticker.info
+                name = info.get("longName") or info.get("shortName")
+                if name:
+                    results.insert(0, {"symbol": query, "name": name})
+                    existing_symbols.add(query)
+            except Exception:
+                pass
+
+        # 3. FMP API로 추가 검색 (API 키가 있을 때만)
         if FMP_API_KEY and len(results) < 10:
             try:
                 fmp_results = self._search_etf_fmp(query)
-                # 중복 제거하며 추가
-                existing_symbols = {r["symbol"] for r in results}
                 for etf in fmp_results:
                     if etf["symbol"] not in existing_symbols:
                         results.append(etf)
                         existing_symbols.add(etf["symbol"])
             except Exception:
-                pass  # API 실패 시 로컬 결과만 반환
+                pass
 
         # 정확한 매칭을 먼저 정렬
         results.sort(key=lambda x: (

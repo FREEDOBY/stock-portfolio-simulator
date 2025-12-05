@@ -1,8 +1,14 @@
-interface Settings {
+export type InvestmentType = 'lump_sum' | 'dca';
+export type DCAFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly';
+
+export interface Settings {
   startDate: string;
   endDate: string;
   initialAmount: number;
   rebalance: string;
+  investmentType: InvestmentType;
+  dcaFrequency: DCAFrequency;
+  dcaAmount: number;
 }
 
 interface Props {
@@ -53,13 +59,57 @@ export function SimulationSettings({
           />
         </div>
 
+        {/* 투자 방식 선택 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            투자 방식
+          </label>
+          <div className="flex gap-4">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="radio"
+                name="investmentType"
+                value="lump_sum"
+                checked={settings.investmentType === 'lump_sum'}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    investmentType: e.target.value as InvestmentType,
+                  })
+                }
+                className="mr-2 w-4 h-4 text-blue-600"
+              />
+              <span className="text-sm text-gray-700">거치식 (일시 투자)</span>
+            </label>
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="radio"
+                name="investmentType"
+                value="dca"
+                checked={settings.investmentType === 'dca'}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    investmentType: e.target.value as InvestmentType,
+                  })
+                }
+                className="mr-2 w-4 h-4 text-blue-600"
+              />
+              <span className="text-sm text-gray-700">적립식 (DCA)</span>
+            </label>
+          </div>
+        </div>
+
+        {/* 초기 투자금 - 거치식/적립식 모두 표시 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            초기 투자금 ($)
+            {settings.investmentType === 'lump_sum'
+              ? '초기 투자금 ($)'
+              : '초기 투자금 ($, 선택)'}
           </label>
           <input
             type="number"
-            min="1000"
+            min={settings.investmentType === 'lump_sum' ? '1000' : '0'}
             step="1000"
             value={settings.initialAmount}
             onChange={(e) =>
@@ -68,6 +118,48 @@ export function SimulationSettings({
             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
           />
         </div>
+
+        {/* 적립식 설정 - DCA 선택 시에만 표시 */}
+        {settings.investmentType === 'dca' && (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                투자 주기
+              </label>
+              <select
+                value={settings.dcaFrequency}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    dcaFrequency: e.target.value as DCAFrequency,
+                  })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="daily">매일</option>
+                <option value="weekly">매주</option>
+                <option value="biweekly">격주 (2주)</option>
+                <option value="monthly">매월</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                주기별 투자 금액 ($)
+              </label>
+              <input
+                type="number"
+                min="100"
+                step="100"
+                value={settings.dcaAmount}
+                onChange={(e) =>
+                  setSettings({ ...settings, dcaAmount: Number(e.target.value) })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+          </>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">

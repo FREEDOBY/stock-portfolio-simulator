@@ -114,6 +114,55 @@ export function MetricsTable({ result }: Props) {
         </table>
       </div>
 
+      {/* 투자 요약 */}
+      <div className="mt-6 pt-4 border-t border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-800 mb-3">투자 요약</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-gray-50 rounded-lg p-4">
+            <p className="text-sm text-gray-500">총 투자 원금</p>
+            <p className="text-xl font-bold text-gray-800">
+              ${result.total_invested.toLocaleString()}
+            </p>
+          </div>
+          <div className="bg-gray-50 rounded-lg p-4">
+            <p className="text-sm text-gray-500">최종 자산</p>
+            <p className="text-xl font-bold text-gray-800">
+              $
+              {result.portfolio_values[
+                result.portfolio_values.length - 1
+              ].value.toLocaleString()}
+            </p>
+          </div>
+          <div className="bg-gray-50 rounded-lg p-4">
+            <p className="text-sm text-gray-500">총 수익</p>
+            {(() => {
+              const finalValue =
+                result.portfolio_values[result.portfolio_values.length - 1].value;
+              const profit = finalValue - result.total_invested;
+              const profitPercent =
+                ((finalValue / result.total_invested) - 1) * 100;
+              const isPositive = profit >= 0;
+              return (
+                <p
+                  className={`text-xl font-bold ${
+                    isPositive ? 'text-green-600' : 'text-red-600'
+                  }`}
+                >
+                  {isPositive ? '+' : ''}${profit.toLocaleString(undefined, {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0,
+                  })}{' '}
+                  <span className="text-sm">
+                    ({isPositive ? '+' : ''}
+                    {profitPercent.toFixed(1)}%)
+                  </span>
+                </p>
+              );
+            })()}
+          </div>
+        </div>
+      </div>
+
       <div className="mt-4 text-sm text-gray-500">
         <p>* 녹색 배경: 해당 지표에서 가장 좋은 성과</p>
       </div>

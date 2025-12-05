@@ -33,6 +33,15 @@ export interface BacktestResult {
     QQQ: BacktestMetrics;
     SPY: BacktestMetrics;
   };
+  total_invested: number;
+}
+
+export type InvestmentType = 'lump_sum' | 'dca';
+export type DCAFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly';
+
+export interface DCASettings {
+  frequency: DCAFrequency;
+  amount: number;
 }
 
 export interface BacktestRequest {
@@ -41,4 +50,6 @@ export interface BacktestRequest {
   end_date: string;
   initial_amount: number;
   rebalance: string;
+  investment_type: InvestmentType;
+  dca_settings?: DCASettings;
 }

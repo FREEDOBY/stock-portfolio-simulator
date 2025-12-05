@@ -112,6 +112,51 @@ class BacktestEngine:
 
         return dates
 
+    def get_dca_dates(
+        self,
+        start_date: date,
+        end_date: date,
+        frequency: str,
+        available_dates: set[date] = None
+    ) -> list[date]:
+        """적립식 투자 날짜 목록 반환"""
+        dates = [start_date]  # 첫 투자일 포함
+        current = start_date
+
+        if frequency == "daily":
+            delta = timedelta(days=1)
+        elif frequency == "weekly":
+            delta = timedelta(weeks=1)
+        elif frequency == "biweekly":
+            delta = timedelta(weeks=2)
+        elif frequency == "monthly":
+            delta = relativedelta(months=1)
+        else:
+            return [start_date]
+
+        current = current + delta
+        while current <= end_date:
+            dates.append(current)
+            current = current + delta
+
+        # 거래일만 필터링 (휴장일은 다음 거래일로 조정)
+        if available_dates:
+            adjusted_dates = []
+            sorted_available = sorted(available_dates)
+            for d in dates:
+                if d in available_dates:
+                    adjusted_dates.append(d)
+                else:
+                    # 다음 거래일 찾기
+                    for avail in sorted_available:
+                        if avail >= d:
+                            if avail not in adjusted_dates:
+                                adjusted_dates.append(avail)
+                            break
+            return adjusted_dates
+
+        return dates
+
     def normalize_weights(self, portfolio: list[dict]) -> list[dict]:
         """포트폴리오 비중 정규화 (합계 = 1.0)"""
         total_weight = sum(item["weight"] for item in portfolio)
@@ -130,11 +175,17 @@ class BacktestEngine:
         start_date: date,
         end_date: date,
         initial_amount: float = 10000,
-        rebalance: str = "quarterly"
+        rebalance: str = "quarterly",
+        investment_type: str = "lump_sum",
+        dca_settings: Optional[dict] = None
     ) -> dict:
         """백테스트 실행"""
         if not portfolio:
             raise ValueError("Portfolio cannot be empty")
+
+        # DCA 유효성 검사
+        if investment_type == "dca" and not dca_settings:
+            raise ValueError("DCA settings required for DCA investment type")
 
         # 비중 정규화
         portfolio = self.normalize_weights(portfolio)
@@ -159,25 +210,51 @@ class BacktestEngine:
             else:
                 common_dates = common_dates.intersection(set(df.index))
 
+        common_dates_set = common_dates
         common_dates = sorted(list(common_dates))
 
         if len(common_dates) < 2:
             raise ValueError("Not enough data points for backtest")
 
-        # 포트폴리오 가치 계산
-        portfolio_values = self._calculate_portfolio_values(
-            portfolio, price_data, common_dates, initial_amount, rebalance
-        )
+        # 투자 방식에 따른 분기
+        if investment_type == "dca" and dca_settings:
+            dca_amount = dca_settings["amount"]
+            dca_frequency = dca_settings["frequency"]
 
-        # 벤치마크 가치 계산
-        benchmarks = {}
-        benchmark_metrics = {}
-        for benchmark in self.BENCHMARKS:
-            benchmark_values = self._calculate_single_asset_values(
-                price_data[benchmark], common_dates, initial_amount
+            # 적립식 포트폴리오 계산
+            portfolio_values, total_invested = self._calculate_portfolio_values_dca(
+                portfolio, price_data, common_dates,
+                initial_amount, dca_amount, dca_frequency, rebalance,
+                common_dates_set
             )
-            benchmarks[benchmark] = benchmark_values
-            benchmark_metrics[benchmark] = self._calculate_metrics(benchmark_values)
+
+            # 적립식 벤치마크 계산
+            benchmarks = {}
+            benchmark_metrics = {}
+            for benchmark in self.BENCHMARKS:
+                bench_values, _ = self._calculate_single_asset_values_dca(
+                    price_data[benchmark], common_dates,
+                    initial_amount, dca_amount, dca_frequency,
+                    common_dates_set
+                )
+                benchmarks[benchmark] = bench_values
+                benchmark_metrics[benchmark] = self._calculate_metrics(bench_values)
+        else:
+            # 기존 거치식 로직
+            portfolio_values = self._calculate_portfolio_values(
+                portfolio, price_data, common_dates, initial_amount, rebalance
+            )
+            total_invested = initial_amount
+
+            # 벤치마크 가치 계산
+            benchmarks = {}
+            benchmark_metrics = {}
+            for benchmark in self.BENCHMARKS:
+                benchmark_values = self._calculate_single_asset_values(
+                    price_data[benchmark], common_dates, initial_amount
+                )
+                benchmarks[benchmark] = benchmark_values
+                benchmark_metrics[benchmark] = self._calculate_metrics(benchmark_values)
 
         # 지표 계산
         metrics = self._calculate_metrics(portfolio_values)
@@ -195,7 +272,8 @@ class BacktestEngine:
                 for symbol, values in benchmarks.items()
             },
             "metrics": metrics,
-            "benchmark_metrics": benchmark_metrics
+            "benchmark_metrics": benchmark_metrics,
+            "total_invested": round(total_invested, 2)
         }
 
     def _calculate_portfolio_values(
@@ -290,6 +368,121 @@ class BacktestEngine:
             "sharpe_ratio": round(sharpe, 4),
             "volatility": round(volatility, 4)
         }
+
+    def _calculate_portfolio_values_dca(
+        self,
+        portfolio: list[dict],
+        price_data: dict[str, pd.DataFrame],
+        dates: list[date],
+        initial_amount: float,
+        dca_amount: float,
+        dca_frequency: str,
+        rebalance: str,
+        available_dates: set[date]
+    ) -> tuple[dict[date, float], float]:
+        """
+        적립식 포트폴리오 일별 가치 계산
+
+        Returns:
+            (values dict, total_invested)
+        """
+        # DCA 투자일 및 리밸런싱일 계산
+        dca_dates = set(self.get_dca_dates(
+            dates[0], dates[-1], dca_frequency, available_dates
+        ))
+        rebalance_dates = set(self.get_rebalance_dates(dates[0], dates[-1], rebalance))
+
+        holdings = {}  # symbol -> shares
+        total_invested = 0.0
+        values = {}
+        first_date = dates[0]
+
+        for d in dates:
+            # 1. 첫날 투자 (초기 투자금 또는 DCA 금액)
+            if d == first_date:
+                # 초기 투자금이 있으면 초기 투자금으로
+                # 없으면 DCA 금액으로 첫 투자
+                first_investment = initial_amount if initial_amount > 0 else dca_amount
+                if first_investment > 0:
+                    total_invested += first_investment
+                    for item in portfolio:
+                        symbol = item["symbol"]
+                        weight = item["weight"]
+                        price = price_data[symbol].loc[d, "close"]
+                        amount = first_investment * weight
+                        holdings[symbol] = holdings.get(symbol, 0) + amount / price
+
+            # 2. DCA 투자일에 추가 매수 (첫날 제외)
+            elif d in dca_dates:
+                total_invested += dca_amount
+                for item in portfolio:
+                    symbol = item["symbol"]
+                    weight = item["weight"]
+                    price = price_data[symbol].loc[d, "close"]
+                    additional_amount = dca_amount * weight
+                    holdings[symbol] = holdings.get(symbol, 0) + additional_amount / price
+
+            # 3. 현재 포트폴리오 가치 계산
+            total_value = sum(
+                holdings.get(symbol, 0) * price_data[symbol].loc[d, "close"]
+                for symbol in [item["symbol"] for item in portfolio]
+            )
+            values[d] = total_value
+
+            # 4. 리밸런싱 (DCA 이후 수행)
+            if d in rebalance_dates and d != dates[-1] and total_value > 0:
+                holdings = {}
+                for item in portfolio:
+                    symbol = item["symbol"]
+                    weight = item["weight"]
+                    price = price_data[symbol].loc[d, "close"]
+                    amount = total_value * weight
+                    holdings[symbol] = amount / price
+
+        return values, total_invested
+
+    def _calculate_single_asset_values_dca(
+        self,
+        price_df: pd.DataFrame,
+        dates: list[date],
+        initial_amount: float,
+        dca_amount: float,
+        dca_frequency: str,
+        available_dates: set[date]
+    ) -> tuple[dict[date, float], float]:
+        """
+        단일 자산 적립식 일별 가치 계산
+
+        Returns:
+            (values dict, total_invested)
+        """
+        dca_dates = set(self.get_dca_dates(
+            dates[0], dates[-1], dca_frequency, available_dates
+        ))
+
+        shares = 0.0
+        total_invested = 0.0
+        values = {}
+        first_date = dates[0]
+
+        for d in dates:
+            # 첫날 투자 (초기 투자금 또는 DCA 금액)
+            if d == first_date:
+                first_investment = initial_amount if initial_amount > 0 else dca_amount
+                if first_investment > 0:
+                    total_invested += first_investment
+                    price = price_df.loc[d, "close"]
+                    shares += first_investment / price
+
+            # DCA 투자일 (첫날 제외)
+            elif d in dca_dates:
+                total_invested += dca_amount
+                price = price_df.loc[d, "close"]
+                shares += dca_amount / price
+
+            values[d] = shares * price_df.loc[d, "close"]
+
+        return values, total_invested
 
 
 # 싱글톤 인스턴스

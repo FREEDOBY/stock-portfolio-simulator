@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { PortfolioBuilder } from './components/PortfolioBuilder';
-import { SimulationSettings } from './components/SimulationSettings';
+import { SimulationSettings, type Settings } from './components/SimulationSettings';
 import { PerformanceChart } from './components/PerformanceChart';
 import { MetricsTable } from './components/MetricsTable';
 import { runBacktest } from './api';
@@ -9,7 +9,7 @@ import type { PortfolioItem, BacktestResult } from './types';
 const STORAGE_KEY = 'portfolio-simulator';
 
 // 기본 설정
-const getDefaultSettings = () => {
+const getDefaultSettings = (): Settings => {
   const today = new Date();
   const fiveYearsAgo = new Date(today);
   fiveYearsAgo.setFullYear(today.getFullYear() - 5);
@@ -19,6 +19,9 @@ const getDefaultSettings = () => {
     endDate: today.toISOString().split('T')[0],
     initialAmount: 10000,
     rebalance: 'quarterly',
+    investmentType: 'lump_sum',
+    dcaFrequency: 'monthly',
+    dcaAmount: 500,
   };
 };
 
@@ -70,6 +73,11 @@ function App() {
         end_date: settings.endDate,
         initial_amount: settings.initialAmount,
         rebalance: settings.rebalance,
+        investment_type: settings.investmentType,
+        dca_settings:
+          settings.investmentType === 'dca'
+            ? { frequency: settings.dcaFrequency, amount: settings.dcaAmount }
+            : undefined,
       });
 
       setResult(response);
