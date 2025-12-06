@@ -40,11 +40,6 @@ const metricInfos: Record<string, MetricInfo> = {
   },
 };
 
-const BENCHMARK_COLORS: Record<BenchmarkType, string> = {
-  QQQ: 'text-red-500',
-  SPY: 'text-green-600',
-};
-
 export function MetricsTable({ result, selectedBenchmarks }: Props) {
   const [hoveredMetric, setHoveredMetric] = useState<string | null>(null);
 
