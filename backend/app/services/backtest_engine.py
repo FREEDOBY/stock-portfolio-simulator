@@ -232,13 +232,18 @@ class BacktestEngine:
             benchmarks = {}
             benchmark_metrics = {}
             for benchmark in self.BENCHMARKS:
-                bench_values, _ = self._calculate_single_asset_values_dca(
+                bench_values, bench_invested = self._calculate_single_asset_values_dca(
                     price_data[benchmark], common_dates,
                     initial_amount, dca_amount, dca_frequency,
                     common_dates_set
                 )
                 benchmarks[benchmark] = bench_values
-                benchmark_metrics[benchmark] = self._calculate_metrics(bench_values)
+                benchmark_metrics[benchmark] = self._calculate_metrics(
+                    bench_values, bench_invested
+                )
+
+            # 적립식 지표 계산 (총 투자 원금 기준)
+            metrics = self._calculate_metrics(portfolio_values, total_invested)
         else:
             # 기존 거치식 로직
             portfolio_values = self._calculate_portfolio_values(
@@ -256,8 +261,8 @@ class BacktestEngine:
                 benchmarks[benchmark] = benchmark_values
                 benchmark_metrics[benchmark] = self._calculate_metrics(benchmark_values)
 
-        # 지표 계산
-        metrics = self._calculate_metrics(portfolio_values)
+            # 거치식 지표 계산
+            metrics = self._calculate_metrics(portfolio_values)
 
         return {
             "portfolio_values": [
@@ -335,8 +340,17 @@ class BacktestEngine:
             for d in dates
         }
 
-    def _calculate_metrics(self, values: dict[date, float]) -> dict:
-        """성과 지표 계산"""
+    def _calculate_metrics(
+        self,
+        values: dict[date, float],
+        total_invested: Optional[float] = None
+    ) -> dict:
+        """성과 지표 계산
+
+        Args:
+            values: 일별 포트폴리오 가치
+            total_invested: 총 투자 원금 (적립식의 경우 사용)
+        """
         dates = sorted(values.keys())
         value_series = pd.Series([values[d] for d in dates])
 
@@ -346,9 +360,10 @@ class BacktestEngine:
         # 기간 (년)
         years = (dates[-1] - dates[0]).days / 365.25
 
-        # CAGR
+        # CAGR - 적립식의 경우 총 투자 원금 기준으로 계산
+        initial_for_cagr = total_invested if total_invested else value_series.iloc[0]
         cagr = self.calculate_cagr(
-            value_series.iloc[0],
+            initial_for_cagr,
             value_series.iloc[-1],
             years
         )

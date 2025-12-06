@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .routers import etf, backtest
 
 app = FastAPI(
-    title="Portfolio Backtester API",
+    title="주식 포트폴리오 시뮬레이터 API",
     description="ETF 포트폴리오 백테스트 시뮬레이터",
     version="1.0.0"
 )

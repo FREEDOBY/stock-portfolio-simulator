@@ -36,6 +36,8 @@ export interface BacktestResult {
   total_invested: number;
 }
 
+export type BenchmarkType = 'QQQ' | 'SPY';
+
 export type InvestmentType = 'lump_sum' | 'dca';
 export type DCAFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly';
 
@@ -52,4 +54,12 @@ export interface BacktestRequest {
   rebalance: string;
   investment_type: InvestmentType;
   dca_settings?: DCASettings;
+}
+
+export interface SavedPortfolio {
+  id: string;
+  name: string;
+  portfolio: PortfolioItem[];
+  createdAt: string;
+  updatedAt: string;
 }

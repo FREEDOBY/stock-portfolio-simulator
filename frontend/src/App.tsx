@@ -3,8 +3,10 @@ import { PortfolioBuilder } from './components/PortfolioBuilder';
 import { SimulationSettings, type Settings } from './components/SimulationSettings';
 import { PerformanceChart } from './components/PerformanceChart';
 import { MetricsTable } from './components/MetricsTable';
+import { PortfolioPieChart } from './components/PortfolioPieChart';
+import { SavedPortfolioList } from './components/SavedPortfolioList';
 import { runBacktest } from './api';
-import type { PortfolioItem, BacktestResult } from './types';
+import type { PortfolioItem, BacktestResult, BenchmarkType } from './types';
 
 const STORAGE_KEY = 'portfolio-simulator';
 
@@ -31,6 +33,7 @@ function App() {
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedBenchmarks, setSelectedBenchmarks] = useState<BenchmarkType[]>(['SPY']);
 
   // localStorage에서 포트폴리오 복원
   useEffect(() => {
@@ -99,7 +102,7 @@ function App() {
         {/* 헤더 */}
         <header className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800">
-            Portfolio Backtester
+            주식 포트폴리오 시뮬레이터
           </h1>
           <p className="text-gray-600 mt-2">
             ETF 포트폴리오를 구성하고 QQQ, SPY와 성과를 비교해보세요
@@ -120,6 +123,13 @@ function App() {
               portfolio={portfolio}
               setPortfolio={setPortfolio}
             />
+            {portfolio.length > 0 && (
+              <PortfolioPieChart portfolio={portfolio} />
+            )}
+            <SavedPortfolioList
+              currentPortfolio={portfolio}
+              onLoad={setPortfolio}
+            />
             <SimulationSettings
               settings={settings}
               setSettings={setSettings}
@@ -133,8 +143,15 @@ function App() {
           <div className="lg:col-span-2 space-y-6">
             {result ? (
               <>
-                <PerformanceChart result={result} />
-                <MetricsTable result={result} />
+                <PerformanceChart
+                  result={result}
+                  selectedBenchmarks={selectedBenchmarks}
+                  onBenchmarkChange={setSelectedBenchmarks}
+                />
+                <MetricsTable
+                  result={result}
+                  selectedBenchmarks={selectedBenchmarks}
+                />
               </>
             ) : (
               <div className="bg-white rounded-xl shadow-md p-12 text-center">
