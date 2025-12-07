@@ -5,6 +5,7 @@ import { PerformanceChart } from './components/PerformanceChart';
 import { MetricsTable } from './components/MetricsTable';
 import { PortfolioPieChart } from './components/PortfolioPieChart';
 import { SavedPortfolioList } from './components/SavedPortfolioList';
+import { DividendSection } from './components/DividendSection';
 import { runBacktest } from './api';
 import type { PortfolioItem, BacktestResult, BenchmarkType } from './types';
 
@@ -152,6 +153,9 @@ function App() {
                   result={result}
                   selectedBenchmarks={selectedBenchmarks}
                 />
+                {result.dividend_stats && (
+                  <DividendSection dividendStats={result.dividend_stats} />
+                )}
               </>
             ) : (
               <div className="bg-white rounded-xl shadow-md p-12 text-center">

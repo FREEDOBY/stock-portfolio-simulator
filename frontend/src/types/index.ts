@@ -23,6 +23,20 @@ export interface PortfolioValue {
   invested?: number;  // 해당 날짜까지의 누적 투자원금 (적립식일 때만 포함)
 }
 
+export interface MonthlyDividend {
+  month: string;
+  amount: number;
+  by_etf: Record<string, number>;
+}
+
+export interface DividendStats {
+  total_dividends: number;
+  dividend_yield: number;
+  monthly_average: number;
+  monthly_data: MonthlyDividend[];
+  by_etf: Record<string, number>;
+}
+
 export interface BacktestResult {
   portfolio_values: PortfolioValue[];
   benchmarks: {
@@ -35,6 +49,7 @@ export interface BacktestResult {
     SPY: BacktestMetrics;
   };
   total_invested: number;
+  dividend_stats?: DividendStats;
 }
 
 export type BenchmarkType = 'QQQ' | 'SPY';

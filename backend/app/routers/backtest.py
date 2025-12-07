@@ -7,7 +7,9 @@ from ..models.schemas import (
     BacktestResponse,
     BacktestMetrics,
     PortfolioValue,
-    InvestmentType
+    InvestmentType,
+    DividendStats,
+    MonthlyDividend
 )
 
 router = APIRouter(prefix="/api/backtest", tags=["Backtest"])
@@ -41,6 +43,20 @@ async def run_backtest(request: BacktestRequest):
             )
         )
 
+        # 배당 통계 변환
+        dividend_stats = None
+        if result.get("dividend_stats"):
+            ds = result["dividend_stats"]
+            dividend_stats = DividendStats(
+                total_dividends=ds["total_dividends"],
+                dividend_yield=ds["dividend_yield"],
+                monthly_average=ds["monthly_average"],
+                monthly_data=[
+                    MonthlyDividend(**md) for md in ds["monthly_data"]
+                ],
+                by_etf=ds["by_etf"]
+            )
+
         return BacktestResponse(
             portfolio_values=[
                 PortfolioValue(**pv) for pv in result["portfolio_values"]
@@ -54,7 +70,8 @@ async def run_backtest(request: BacktestRequest):
                 symbol: BacktestMetrics(**metrics)
                 for symbol, metrics in result["benchmark_metrics"].items()
             },
-            total_invested=result["total_invested"]
+            total_invested=result["total_invested"],
+            dividend_stats=dividend_stats
         )
 
     except ValueError as e:

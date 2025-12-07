@@ -245,6 +245,51 @@ class DataFetcher:
 
         return result
 
+    def get_dividends(
+        self,
+        symbol: str,
+        start_date: date,
+        end_date: date
+    ) -> pd.DataFrame:
+        """배당 데이터 조회"""
+        try:
+            ticker = yf.Ticker(symbol)
+            dividends = ticker.dividends
+
+            if dividends.empty:
+                return pd.DataFrame(columns=['dividend'])
+
+            # timezone 제거 (yfinance는 timezone-aware 날짜를 반환함)
+            if dividends.index.tz is not None:
+                dividends = dividends.copy()
+                dividends.index = dividends.index.tz_localize(None)
+
+            # 날짜를 date 객체로 변환
+            dividends.index = pd.to_datetime(dividends.index).date
+
+            # 날짜 범위 필터링
+            mask = (dividends.index >= start_date) & (dividends.index <= end_date)
+            filtered = dividends[mask]
+
+            if filtered.empty:
+                return pd.DataFrame(columns=['dividend'])
+
+            return filtered.to_frame(name='dividend')
+        except Exception:
+            return pd.DataFrame(columns=['dividend'])
+
+    def get_multiple_dividends(
+        self,
+        symbols: list[str],
+        start_date: date,
+        end_date: date
+    ) -> dict[str, pd.DataFrame]:
+        """여러 종목 배당 데이터 조회"""
+        result = {}
+        for symbol in symbols:
+            result[symbol] = self.get_dividends(symbol, start_date, end_date)
+        return result
+
 
 # 싱글톤 인스턴스
 data_fetcher = DataFetcher()

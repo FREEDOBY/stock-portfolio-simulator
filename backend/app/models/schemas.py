@@ -82,6 +82,22 @@ class BenchmarkData(BaseModel):
     SPY: list[PortfolioValue]
 
 
+class MonthlyDividend(BaseModel):
+    """월별 배당 데이터"""
+    month: str = Field(..., description="월 (YYYY-MM)")
+    amount: float = Field(..., description="총 배당금")
+    by_etf: dict[str, float] = Field(default_factory=dict, description="ETF별 배당금")
+
+
+class DividendStats(BaseModel):
+    """배당 통계"""
+    total_dividends: float = Field(..., description="총 배당금")
+    dividend_yield: float = Field(..., description="배당 수익률 (%)")
+    monthly_average: float = Field(..., description="월평균 배당금")
+    monthly_data: list[MonthlyDividend] = Field(default_factory=list, description="월별 배당 데이터")
+    by_etf: dict[str, float] = Field(default_factory=dict, description="ETF별 총 배당금")
+
+
 class BacktestResponse(BaseModel):
     """백테스트 응답"""
     portfolio_values: list[PortfolioValue]
@@ -89,6 +105,7 @@ class BacktestResponse(BaseModel):
     metrics: BacktestMetrics
     benchmark_metrics: dict[str, BacktestMetrics]
     total_invested: float = Field(..., description="총 투자 원금")
+    dividend_stats: Optional[DividendStats] = Field(default=None, description="배당 통계")
 
 
 class ETFInfo(BaseModel):

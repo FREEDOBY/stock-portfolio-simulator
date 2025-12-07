@@ -268,6 +268,29 @@ class BacktestEngine:
             # 거치식 지표 계산
             metrics = self._calculate_metrics(portfolio_values)
 
+        # 배당 데이터 조회 및 통계 계산
+        symbols = [item["symbol"] for item in portfolio]
+        dividend_data = self.data_fetcher.get_multiple_dividends(
+            symbols, start_date, end_date
+        )
+
+        # 마지막 날짜의 보유 주식수 계산 (간소화)
+        last_date = common_dates[-1]
+        shares_held = {}
+        for item in portfolio:
+            symbol = item["symbol"]
+            weight = item["weight"]
+            price = price_data[symbol].loc[last_date, "close"]
+            final_value = list(portfolio_values.values())[-1]
+            shares_held[symbol] = (final_value * weight) / price
+
+        dividend_stats = self.calculate_dividend_stats(
+            portfolio=portfolio,
+            dividend_data=dividend_data,
+            total_invested=total_invested,
+            shares_held=shares_held
+        )
+
         # 응답 생성
         response_portfolio_values = []
         for d, v in portfolio_values.items():
@@ -293,7 +316,8 @@ class BacktestEngine:
             "benchmarks": response_benchmarks,
             "metrics": metrics,
             "benchmark_metrics": benchmark_metrics,
-            "total_invested": round(total_invested, 2)
+            "total_invested": round(total_invested, 2),
+            "dividend_stats": dividend_stats
         }
 
     def _calculate_portfolio_values(
@@ -520,6 +544,81 @@ class BacktestEngine:
             values[d] = shares * price_df.loc[d, "close"]
 
         return values, invested_amounts, total_invested
+
+    def calculate_dividend_stats(
+        self,
+        portfolio: list[dict],
+        dividend_data: dict[str, pd.DataFrame],
+        total_invested: float,
+        shares_held: dict[str, float]
+    ) -> dict:
+        """
+        배당 통계 계산
+
+        Args:
+            portfolio: 포트폴리오 구성
+            dividend_data: 심볼별 배당 데이터
+            total_invested: 총 투자 원금
+            shares_held: 심볼별 보유 주식 수
+
+        Returns:
+            배당 통계 딕셔너리
+        """
+        total_dividends = 0.0
+        by_etf = {}
+        monthly_data_dict = {}  # {month: {total: 0, by_etf: {}}}
+
+        for item in portfolio:
+            symbol = item["symbol"]
+            shares = shares_held.get(symbol, 0)
+
+            if symbol not in dividend_data or dividend_data[symbol].empty:
+                by_etf[symbol] = 0.0
+                continue
+
+            df = dividend_data[symbol]
+            symbol_total = 0.0
+
+            for div_date, row in df.iterrows():
+                div_amount = row['dividend'] * shares
+                symbol_total += div_amount
+                total_dividends += div_amount
+
+                # 월별 집계
+                month = f"{div_date.year}-{div_date.month:02d}"
+                if month not in monthly_data_dict:
+                    monthly_data_dict[month] = {'total': 0.0, 'by_etf': {}}
+                monthly_data_dict[month]['total'] += div_amount
+                if symbol not in monthly_data_dict[month]['by_etf']:
+                    monthly_data_dict[month]['by_etf'][symbol] = 0.0
+                monthly_data_dict[month]['by_etf'][symbol] += div_amount
+
+            by_etf[symbol] = round(symbol_total, 2)
+
+        # 월별 데이터 리스트 변환
+        monthly_data = []
+        for month in sorted(monthly_data_dict.keys()):
+            data = monthly_data_dict[month]
+            monthly_data.append({
+                'month': month,
+                'amount': round(data['total'], 2),
+                'by_etf': {k: round(v, 2) for k, v in data['by_etf'].items()}
+            })
+
+        # 배당 수익률 계산
+        dividend_yield = (total_dividends / total_invested * 100) if total_invested > 0 else 0.0
+
+        # 월평균 계산
+        num_months = len(monthly_data) if monthly_data else 1
+        monthly_average = total_dividends / num_months if num_months > 0 else 0.0
+
+        return {
+            'total_dividends': round(total_dividends, 2),
+            'dividend_yield': round(dividend_yield, 4),
+            'monthly_average': round(monthly_average, 2),
+            'monthly_data': monthly_data,
+            'by_etf': by_etf
+        }
 
 
 # 싱글톤 인스턴스
