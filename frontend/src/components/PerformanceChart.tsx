@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   ComposedChart,
   Line,
@@ -50,6 +50,33 @@ const BENCHMARK_CONFIG: Record<
 };
 
 const PORTFOLIO_COLOR = '#3b82f6';
+
+// 줌 설정
+const ZOOM_CONFIG = {
+  MIN_VISIBLE_POINTS: 10,  // 최소 표시 데이터 포인트
+  ZOOM_FACTOR: 0.1,        // 휠 1회에 10% 확대/축소
+  THROTTLE_MS: 16,         // ~60fps 제한
+} as const;
+
+// 성능 최적화를 위한 throttle 함수
+function throttle(
+  func: (e: WheelEvent) => void,
+  limit: number
+): (e: WheelEvent) => void {
+  let inThrottle = false;
+  return (e: WheelEvent) => {
+    if (!inThrottle) {
+      func(e);
+      inThrottle = true;
+      setTimeout(() => (inThrottle = false), limit);
+    }
+  };
+}
+
+interface ZoomState {
+  startIndex: number;
+  endIndex: number; // -1은 전체 데이터
+}
 
 interface ChartDataPoint {
   date: string;
@@ -158,6 +185,11 @@ export function PerformanceChart({
 }: Props) {
   const [viewMode, setViewMode] = useState<ViewMode>('absolute');
   const [showRelativeChart, setShowRelativeChart] = useState(false);
+  const [zoomState, setZoomState] = useState<ZoomState>({
+    startIndex: 0,
+    endIndex: -1,
+  });
+  const chartContainerRef = useRef<HTMLDivElement>(null);
 
   const toggleBenchmark = (benchmark: BenchmarkType) => {
     onBenchmarkChange(
@@ -287,11 +319,111 @@ export function PerformanceChart({
     return areas;
   }, [selectedBenchmarks, underperformanceRanges, chartData]);
 
+  // 줌 데이터 계산
+  const { displayData, isZoomed, zoomPercentage } = useMemo(() => {
+    const total = chartData.length;
+    if (total === 0) {
+      return { displayData: chartData, isZoomed: false, zoomPercentage: 100 };
+    }
+    const end = zoomState.endIndex === -1 ? total - 1 : zoomState.endIndex;
+    const start = zoomState.startIndex;
+    const validStart = Math.max(0, Math.min(start, total - 1));
+    const validEnd = Math.max(validStart, Math.min(end, total - 1));
+    const sliced = chartData.slice(validStart, validEnd + 1);
+    return {
+      displayData: sliced,
+      isZoomed: sliced.length < total,
+      zoomPercentage: Math.round((sliced.length / total) * 100),
+    };
+  }, [chartData, zoomState]);
+
+  // 줌 리셋
+  const resetZoom = useCallback(() => {
+    setZoomState({ startIndex: 0, endIndex: -1 });
+  }, []);
+
+  // 휠 이벤트 핸들러
+  const handleWheel = useCallback(
+    (e: WheelEvent) => {
+      e.preventDefault();
+      const container = chartContainerRef.current;
+      if (!container || chartData.length === 0) return;
+
+      const rect = container.getBoundingClientRect();
+      const relativePos = (e.clientX - rect.left) / rect.width;
+
+      const total = chartData.length;
+      const end = zoomState.endIndex === -1 ? total - 1 : zoomState.endIndex;
+      const start = zoomState.startIndex;
+      const range = end - start + 1;
+
+      const zoomIn = e.deltaY < 0;
+      const amount = Math.ceil(range * ZOOM_CONFIG.ZOOM_FACTOR);
+
+      let newStart = start;
+      let newEnd = end;
+
+      if (zoomIn && range > ZOOM_CONFIG.MIN_VISIBLE_POINTS) {
+        // 확대
+        const leftShrink = Math.floor(amount * relativePos);
+        const rightShrink = amount - leftShrink;
+        newStart = Math.min(start + leftShrink, end - ZOOM_CONFIG.MIN_VISIBLE_POINTS + 1);
+        newEnd = Math.max(end - rightShrink, newStart + ZOOM_CONFIG.MIN_VISIBLE_POINTS - 1);
+      } else if (!zoomIn && range < total) {
+        // 축소
+        const leftExpand = Math.floor(amount * relativePos);
+        const rightExpand = amount - leftExpand;
+        newStart = Math.max(0, start - leftExpand);
+        newEnd = Math.min(total - 1, end + rightExpand);
+      }
+
+      setZoomState({ startIndex: newStart, endIndex: newEnd });
+    },
+    [chartData.length, zoomState]
+  );
+
+  // throttle된 휠 핸들러
+  const throttledHandleWheel = useMemo(
+    () => throttle(handleWheel, ZOOM_CONFIG.THROTTLE_MS),
+    [handleWheel]
+  );
+
+  // 휠 이벤트 리스너 등록
+  useEffect(() => {
+    const container = chartContainerRef.current;
+    if (!container) return;
+    container.addEventListener('wheel', throttledHandleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', throttledHandleWheel);
+  }, [throttledHandleWheel]);
+
+  // 데이터 변경 시 줌 리셋
+  useEffect(() => {
+    resetZoom();
+  }, [result, resetZoom]);
+
   return (
     <div className="bg-white rounded-xl shadow-md p-6">
       {/* 헤더 */}
       <div className="flex flex-wrap justify-between items-center mb-4 gap-3">
-        <h2 className="text-xl font-bold text-gray-800">성과 차트</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-bold text-gray-800">성과 차트</h2>
+          {/* 줌 상태 표시 */}
+          {isZoomed && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">{zoomPercentage}% 표시</span>
+              <button
+                onClick={resetZoom}
+                className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 rounded border border-gray-300 transition-colors flex items-center gap-1"
+                title="전체 보기"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                리셋
+              </button>
+            </div>
+          )}
+        </div>
 
         <div className="flex flex-wrap gap-2 items-center">
           {/* 뷰 모드 전환 */}
@@ -374,10 +506,14 @@ export function PerformanceChart({
       )}
 
       {/* 메인 차트 */}
-      <div className="h-80">
+      <div
+        ref={chartContainerRef}
+        className="h-80"
+        title={isZoomed ? '휠: 확대/축소' : '마우스 휠로 확대/축소'}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
-            data={chartData}
+            data={displayData}
             margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
           >
             <defs>
@@ -511,6 +647,13 @@ export function PerformanceChart({
           </ComposedChart>
         </ResponsiveContainer>
       </div>
+
+      {/* 줌 힌트 */}
+      {!isZoomed && (
+        <p className="text-xs text-gray-400 text-center mt-1">
+          마우스 휠로 확대/축소
+        </p>
+      )}
 
       {/* 상대 성과 차트 토글 */}
       {selectedBenchmarks.length > 0 && (

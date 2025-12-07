@@ -20,6 +20,7 @@ export interface BacktestMetrics {
 export interface PortfolioValue {
   date: string;
   value: number;
+  invested?: number;  // 해당 날짜까지의 누적 투자원금 (적립식일 때만 포함)
 }
 
 export interface BacktestResult {

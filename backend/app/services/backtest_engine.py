@@ -217,12 +217,15 @@ class BacktestEngine:
             raise ValueError("Not enough data points for backtest")
 
         # 투자 방식에 따른 분기
+        portfolio_invested_amounts = {}  # 일별 누적 투자원금
+        benchmark_invested_amounts = {}  # 벤치마크별 일별 누적 투자원금
+
         if investment_type == "dca" and dca_settings:
             dca_amount = dca_settings["amount"]
             dca_frequency = dca_settings["frequency"]
 
             # 적립식 포트폴리오 계산
-            portfolio_values, total_invested = self._calculate_portfolio_values_dca(
+            portfolio_values, portfolio_invested_amounts, total_invested = self._calculate_portfolio_values_dca(
                 portfolio, price_data, common_dates,
                 initial_amount, dca_amount, dca_frequency, rebalance,
                 common_dates_set
@@ -232,12 +235,13 @@ class BacktestEngine:
             benchmarks = {}
             benchmark_metrics = {}
             for benchmark in self.BENCHMARKS:
-                bench_values, bench_invested = self._calculate_single_asset_values_dca(
+                bench_values, bench_invested_amounts, bench_invested = self._calculate_single_asset_values_dca(
                     price_data[benchmark], common_dates,
                     initial_amount, dca_amount, dca_frequency,
                     common_dates_set
                 )
                 benchmarks[benchmark] = bench_values
+                benchmark_invested_amounts[benchmark] = bench_invested_amounts
                 benchmark_metrics[benchmark] = self._calculate_metrics(
                     bench_values, bench_invested
                 )
@@ -264,18 +268,29 @@ class BacktestEngine:
             # 거치식 지표 계산
             metrics = self._calculate_metrics(portfolio_values)
 
+        # 응답 생성
+        response_portfolio_values = []
+        for d, v in portfolio_values.items():
+            item = {"date": str(d), "value": round(v, 2)}
+            # DCA 모드일 때만 invested 추가
+            if d in portfolio_invested_amounts:
+                item["invested"] = round(portfolio_invested_amounts[d], 2)
+            response_portfolio_values.append(item)
+
+        response_benchmarks = {}
+        for symbol, values in benchmarks.items():
+            benchmark_list = []
+            for d, v in values.items():
+                item = {"date": str(d), "value": round(v, 2)}
+                # DCA 모드일 때만 invested 추가
+                if symbol in benchmark_invested_amounts and d in benchmark_invested_amounts[symbol]:
+                    item["invested"] = round(benchmark_invested_amounts[symbol][d], 2)
+                benchmark_list.append(item)
+            response_benchmarks[symbol] = benchmark_list
+
         return {
-            "portfolio_values": [
-                {"date": str(d), "value": round(v, 2)}
-                for d, v in portfolio_values.items()
-            ],
-            "benchmarks": {
-                symbol: [
-                    {"date": str(d), "value": round(v, 2)}
-                    for d, v in values.items()
-                ]
-                for symbol, values in benchmarks.items()
-            },
+            "portfolio_values": response_portfolio_values,
+            "benchmarks": response_benchmarks,
             "metrics": metrics,
             "benchmark_metrics": benchmark_metrics,
             "total_invested": round(total_invested, 2)
@@ -394,12 +409,12 @@ class BacktestEngine:
         dca_frequency: str,
         rebalance: str,
         available_dates: set[date]
-    ) -> tuple[dict[date, float], float]:
+    ) -> tuple[dict[date, float], dict[date, float], float]:
         """
         적립식 포트폴리오 일별 가치 계산
 
         Returns:
-            (values dict, total_invested)
+            (values dict, invested_amounts dict, total_invested)
         """
         # DCA 투자일 및 리밸런싱일 계산
         dca_dates = set(self.get_dca_dates(
@@ -410,6 +425,7 @@ class BacktestEngine:
         holdings = {}  # symbol -> shares
         total_invested = 0.0
         values = {}
+        invested_amounts = {}  # 일별 누적 투자원금
         first_date = dates[0]
 
         for d in dates:
@@ -437,6 +453,9 @@ class BacktestEngine:
                     additional_amount = dca_amount * weight
                     holdings[symbol] = holdings.get(symbol, 0) + additional_amount / price
 
+            # 일별 누적 투자원금 기록
+            invested_amounts[d] = total_invested
+
             # 3. 현재 포트폴리오 가치 계산
             total_value = sum(
                 holdings.get(symbol, 0) * price_data[symbol].loc[d, "close"]
@@ -454,7 +473,7 @@ class BacktestEngine:
                     amount = total_value * weight
                     holdings[symbol] = amount / price
 
-        return values, total_invested
+        return values, invested_amounts, total_invested
 
     def _calculate_single_asset_values_dca(
         self,
@@ -464,12 +483,12 @@ class BacktestEngine:
         dca_amount: float,
         dca_frequency: str,
         available_dates: set[date]
-    ) -> tuple[dict[date, float], float]:
+    ) -> tuple[dict[date, float], dict[date, float], float]:
         """
         단일 자산 적립식 일별 가치 계산
 
         Returns:
-            (values dict, total_invested)
+            (values dict, invested_amounts dict, total_invested)
         """
         dca_dates = set(self.get_dca_dates(
             dates[0], dates[-1], dca_frequency, available_dates
@@ -478,6 +497,7 @@ class BacktestEngine:
         shares = 0.0
         total_invested = 0.0
         values = {}
+        invested_amounts = {}  # 일별 누적 투자원금
         first_date = dates[0]
 
         for d in dates:
@@ -495,9 +515,11 @@ class BacktestEngine:
                 price = price_df.loc[d, "close"]
                 shares += dca_amount / price
 
+            # 일별 누적 투자원금 기록
+            invested_amounts[d] = total_invested
             values[d] = shares * price_df.loc[d, "close"]
 
-        return values, total_invested
+        return values, invested_amounts, total_invested
 
 
 # 싱글톤 인스턴스

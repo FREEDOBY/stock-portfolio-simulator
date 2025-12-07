@@ -70,6 +70,10 @@ class PortfolioValue(BaseModel):
     """일별 포트폴리오 가치"""
     date: str
     value: float
+    invested: Optional[float] = Field(
+        default=None,
+        description="해당 날짜까지의 누적 투자원금 (적립식일 때만 포함)"
+    )
 
 
 class BenchmarkData(BaseModel):

@@ -237,3 +237,116 @@ class TestEdgeCases:
         # 합계 60% -> 자동 정규화하여 각각 50%로
         normalized = engine.normalize_weights(portfolio)
         assert abs(sum(item["weight"] for item in normalized) - 1.0) < 0.001
+
+
+class TestDCAInvestedAmounts:
+    """DCA(적립식) 투자 시 일별 누적 투자원금 테스트"""
+
+    def test_dca_returns_invested_amounts(self):
+        """DCA 모드에서 invested 필드가 응답에 포함되는지 확인"""
+        engine = BacktestEngine()
+        portfolio = [{"symbol": "SPY", "weight": 1.0}]
+
+        result = engine.run_backtest(
+            portfolio=portfolio,
+            start_date=date(2023, 1, 1),
+            end_date=date(2023, 6, 30),
+            initial_amount=10000,
+            rebalance="none",
+            investment_type="dca",
+            dca_settings={"amount": 1000, "frequency": "monthly"}
+        )
+
+        # DCA 모드에서는 invested 필드가 있어야 함
+        assert "portfolio_values" in result
+        assert len(result["portfolio_values"]) > 0
+
+        # 첫 번째 데이터 포인트에 invested 필드 확인
+        first_point = result["portfolio_values"][0]
+        assert "invested" in first_point
+        assert first_point["invested"] == 10000  # 초기 투자금
+
+    def test_dca_invested_amounts_accumulate(self):
+        """DCA 투자원금이 누적되는지 확인"""
+        engine = BacktestEngine()
+        portfolio = [{"symbol": "SPY", "weight": 1.0}]
+
+        result = engine.run_backtest(
+            portfolio=portfolio,
+            start_date=date(2023, 1, 1),
+            end_date=date(2023, 3, 31),
+            initial_amount=10000,
+            rebalance="none",
+            investment_type="dca",
+            dca_settings={"amount": 1000, "frequency": "monthly"}
+        )
+
+        portfolio_values = result["portfolio_values"]
+        invested_values = [pv.get("invested") for pv in portfolio_values if pv.get("invested")]
+
+        # 투자원금은 증가해야 함 (10000 -> 11000 -> 12000 ...)
+        assert len(invested_values) > 1
+        # 마지막 투자원금 > 첫 투자원금
+        assert invested_values[-1] > invested_values[0]
+
+    def test_dca_benchmark_also_has_invested(self):
+        """벤치마크도 invested 필드를 가지는지 확인"""
+        engine = BacktestEngine()
+        portfolio = [{"symbol": "VTI", "weight": 1.0}]
+
+        result = engine.run_backtest(
+            portfolio=portfolio,
+            start_date=date(2023, 1, 1),
+            end_date=date(2023, 3, 31),
+            initial_amount=10000,
+            rebalance="none",
+            investment_type="dca",
+            dca_settings={"amount": 1000, "frequency": "monthly"}
+        )
+
+        # QQQ 벤치마크에도 invested 필드가 있어야 함
+        assert "benchmarks" in result
+        assert "QQQ" in result["benchmarks"]
+
+        qqq_first = result["benchmarks"]["QQQ"][0]
+        assert "invested" in qqq_first
+        assert qqq_first["invested"] == 10000
+
+    def test_lump_sum_no_invested_field(self):
+        """거치식 모드에서는 invested 필드가 없어야 함"""
+        engine = BacktestEngine()
+        portfolio = [{"symbol": "SPY", "weight": 1.0}]
+
+        result = engine.run_backtest(
+            portfolio=portfolio,
+            start_date=date(2023, 1, 1),
+            end_date=date(2023, 3, 31),
+            initial_amount=10000,
+            rebalance="none",
+            investment_type="lump_sum"
+        )
+
+        # 거치식에서는 invested 필드가 없어야 함
+        first_point = result["portfolio_values"][0]
+        assert "invested" not in first_point or first_point.get("invested") is None
+
+    def test_total_invested_matches_last_invested(self):
+        """total_invested가 마지막 날짜의 invested와 일치하는지 확인"""
+        engine = BacktestEngine()
+        portfolio = [{"symbol": "SPY", "weight": 1.0}]
+
+        result = engine.run_backtest(
+            portfolio=portfolio,
+            start_date=date(2023, 1, 1),
+            end_date=date(2023, 6, 30),
+            initial_amount=10000,
+            rebalance="none",
+            investment_type="dca",
+            dca_settings={"amount": 1000, "frequency": "monthly"}
+        )
+
+        # 마지막 데이터 포인트의 invested와 total_invested가 일치해야 함
+        last_invested = result["portfolio_values"][-1].get("invested")
+        total_invested = result["total_invested"]
+
+        assert last_invested == total_invested

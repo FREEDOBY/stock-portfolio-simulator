@@ -2,21 +2,33 @@ import type { PortfolioValue, BenchmarkType } from '../types';
 
 /**
  * 포트폴리오 값 배열에서 누적 수익률(%) 계산
- * @param values - 일별 포트폴리오 값 배열
- * @returns 누적 수익률 배열 (첫 번째 값은 0%)
+ * - 적립식(DCA): 해당 날짜의 누적 투자원금 대비 수익률
+ * - 거치식: 첫날 투자금 대비 수익률
+ * @param values - 일별 포트폴리오 값 배열 (invested 필드 포함 시 DCA 모드)
+ * @returns 누적 수익률 배열
  */
 export function calculateReturns(values: PortfolioValue[]): number[] {
   if (values.length === 0) return [];
   if (values.length === 1) return [0];
 
-  const initial = values[0].value;
+  // DCA 모드 여부 확인 (invested 필드가 있으면 DCA)
+  const isDCA = values[0].invested !== undefined;
 
-  // 초기값이 0이면 모든 수익률을 0으로 반환
-  if (initial === 0) {
-    return values.map(() => 0);
+  if (isDCA) {
+    // 적립식: 각 날짜별로 누적 투자원금 대비 수익률 계산
+    return values.map((v) => {
+      const invested = v.invested ?? v.value;
+      if (invested === 0) return 0;
+      return ((v.value - invested) / invested) * 100;
+    });
+  } else {
+    // 거치식: 첫날 투자금 대비 수익률
+    const initial = values[0].value;
+    if (initial === 0) {
+      return values.map(() => 0);
+    }
+    return values.map((v) => ((v.value - initial) / initial) * 100);
   }
-
-  return values.map((v) => ((v.value - initial) / initial) * 100);
 }
 
 /**

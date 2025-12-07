@@ -60,6 +60,37 @@ describe('chartUtils', () => {
       expect(returns[0]).toBe(0);
       expect(returns[1]).toBe(0); // 0으로 나누기 방지
     });
+
+    // DCA 모드 테스트
+    it('should calculate DCA returns based on invested amount', () => {
+      // DCA 모드: invested 필드가 있는 경우
+      const values: PortfolioValue[] = [
+        { date: '2024-01-01', value: 10000, invested: 10000 },
+        { date: '2024-02-01', value: 11500, invested: 11000 }, // +$1000 투자, 가치 $11500
+        { date: '2024-03-01', value: 13200, invested: 12000 }, // +$1000 투자, 가치 $13200
+      ];
+
+      const returns = calculateReturns(values);
+
+      expect(returns).toHaveLength(3);
+      expect(returns[0]).toBeCloseTo(0); // 10000/10000 - 1 = 0%
+      expect(returns[1]).toBeCloseTo(4.545, 2); // (11500-11000)/11000 = 4.545%
+      expect(returns[2]).toBeCloseTo(10); // (13200-12000)/12000 = 10%
+    });
+
+    it('should use invested amount for DCA, not first day value', () => {
+      // 중요: DCA에서는 첫날 가치가 아닌 각 날짜의 누적 투자원금 대비로 계산
+      const values: PortfolioValue[] = [
+        { date: '2024-01-01', value: 10000, invested: 10000 },
+        { date: '2024-06-01', value: 25000, invested: 20000 }, // 투자금 2배, 가치 2.5배
+      ];
+
+      const returns = calculateReturns(values);
+
+      // DCA 방식: (25000-20000)/20000 = 25%
+      // 거치식 방식이었다면: (25000-10000)/10000 = 150% (잘못된 계산)
+      expect(returns[1]).toBeCloseTo(25);
+    });
   });
 
   describe('calculateExcessReturns', () => {

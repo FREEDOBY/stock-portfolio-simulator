@@ -6,7 +6,9 @@
       "SlashCommand(/agentic-workflow 1. Portfolio Backtester 이름을 \"주식 포트폴리오 시뮬레이터\"로 변경\n2. 포트폴리오 저장/로드 기능 추가\n3. 저장된 포트폴리오를 원형 다이어그램(파이 차트)으로 표시\n4. 변동성 계산식 검증 및 수정)",
       "SlashCommand(/agentic-workflow:*)",
       "Bash(python -m pytest tests/test_backtest_engine.py -v --tb=short)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(npm run test:*)"
     ],
     "deny": [],
     "ask": []
