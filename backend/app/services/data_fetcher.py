@@ -8,6 +8,9 @@ from functools import lru_cache
 from typing import Optional
 from dotenv import load_dotenv
 
+from .korean_stock_service import korean_stock_service
+from .exchange_rate import exchange_rate_service
+
 # .env 파일 로드
 load_dotenv()
 
@@ -94,6 +97,21 @@ POPULAR_ETFS = [
 ]
 
 
+def is_korean_symbol(symbol: str) -> bool:
+    """한국 종목 심볼인지 확인"""
+    return symbol.endswith(".KS") or symbol.endswith(".KQ")
+
+
+def contains_korean(text: str) -> bool:
+    """한글이 포함되어 있는지 확인"""
+    for char in text:
+        if '\uac00' <= char <= '\ud7af':  # 한글 음절
+            return True
+        if '\u3130' <= char <= '\u318f':  # 한글 자모
+            return True
+    return False
+
+
 class DataFetcher:
     """주가 데이터 수집 클래스"""
 
@@ -108,33 +126,49 @@ class DataFetcher:
         return self._http_client
 
     def search_etf(self, query: str) -> list[dict]:
-        """ETF 검색 (로컬 + yfinance 하이브리드)"""
-        query = query.upper().strip()
+        """ETF/주식 검색 (한국 + 해외 통합)"""
+        query_stripped = query.strip()
         results = []
         existing_symbols = set()
 
+        # 한글 검색 또는 6자리 숫자(한국 종목코드) 감지
+        is_korean_query = contains_korean(query_stripped)
+        is_korean_code = query_stripped.isdigit() and len(query_stripped) == 6
+
+        if is_korean_query or is_korean_code:
+            # 한국 종목 검색
+            korean_results = korean_stock_service.search(query_stripped)
+            for item in korean_results:
+                if item["symbol"] not in existing_symbols:
+                    results.append(item)
+                    existing_symbols.add(item["symbol"])
+            return results[:20]
+
+        # 해외 ETF/주식 검색
+        query_upper = query_stripped.upper()
+
         # 1. 로컬 목록에서 먼저 검색 (빠름)
         for etf in self.etf_list:
-            if query in etf["symbol"] or query.lower() in etf["name"].lower():
+            if query_upper in etf["symbol"] or query_upper.lower() in etf["name"].lower():
                 results.append(etf)
                 existing_symbols.add(etf["symbol"])
 
         # 2. 정확한 심볼 매칭 시 yfinance로 직접 조회
-        if query not in existing_symbols and len(query) >= 2:
+        if query_upper not in existing_symbols and len(query_upper) >= 2:
             try:
-                ticker = yf.Ticker(query)
+                ticker = yf.Ticker(query_upper)
                 info = ticker.info
                 name = info.get("longName") or info.get("shortName")
                 if name:
-                    results.insert(0, {"symbol": query, "name": name})
-                    existing_symbols.add(query)
+                    results.insert(0, {"symbol": query_upper, "name": name})
+                    existing_symbols.add(query_upper)
             except Exception:
                 pass
 
         # 3. FMP API로 추가 검색 (API 키가 있을 때만)
         if FMP_API_KEY and len(results) < 10:
             try:
-                fmp_results = self._search_etf_fmp(query)
+                fmp_results = self._search_etf_fmp(query_upper)
                 for etf in fmp_results:
                     if etf["symbol"] not in existing_symbols:
                         results.append(etf)
@@ -144,7 +178,7 @@ class DataFetcher:
 
         # 정확한 매칭을 먼저 정렬
         results.sort(key=lambda x: (
-            0 if x["symbol"] == query else 1,
+            0 if x["symbol"] == query_upper else 1,
             x["symbol"]
         ))
 
@@ -204,7 +238,7 @@ class DataFetcher:
         start_date: date,
         end_date: date
     ) -> pd.DataFrame:
-        """주가 히스토리 조회"""
+        """주가 히스토리 조회 (한국 종목은 USD로 변환)"""
         # 시작일 약간 앞으로 조정 (첫 거래일 확보)
         adjusted_start = start_date - timedelta(days=7)
 
@@ -225,6 +259,11 @@ class DataFetcher:
 
         # 요청 기간으로 필터링
         df = df[(df.index >= start_date) & (df.index <= end_date)]
+
+        # 한국 종목이면 원화 → 달러 변환
+        if is_korean_symbol(symbol):
+            rates = exchange_rate_service.get_historical_rates(start_date, end_date)
+            df = exchange_rate_service.convert_price_series(df, rates)
 
         return df
 
@@ -251,7 +290,7 @@ class DataFetcher:
         start_date: date,
         end_date: date
     ) -> pd.DataFrame:
-        """배당 데이터 조회"""
+        """배당 데이터 조회 (한국 종목은 USD로 변환)"""
         try:
             ticker = yf.Ticker(symbol)
             dividends = ticker.dividends
@@ -274,7 +313,16 @@ class DataFetcher:
             if filtered.empty:
                 return pd.DataFrame(columns=['dividend'])
 
-            return filtered.to_frame(name='dividend')
+            df = filtered.to_frame(name='dividend')
+
+            # 한국 종목이면 원화 → 달러 변환
+            if is_korean_symbol(symbol):
+                rates = exchange_rate_service.get_historical_rates(start_date, end_date)
+                for idx in df.index:
+                    rate = exchange_rate_service.get_rate_for_date(idx)
+                    df.loc[idx, 'dividend'] = df.loc[idx, 'dividend'] / rate
+
+            return df
         except Exception:
             return pd.DataFrame(columns=['dividend'])
 

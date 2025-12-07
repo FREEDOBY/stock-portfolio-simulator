@@ -154,7 +154,7 @@ function App() {
                   selectedBenchmarks={selectedBenchmarks}
                 />
                 {result.dividend_stats && (
-                  <DividendSection dividendStats={result.dividend_stats} />
+                  <DividendSection dividendStats={result.dividend_stats} portfolio={portfolio} />
                 )}
               </>
             ) : (

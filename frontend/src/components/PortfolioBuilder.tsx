@@ -1,5 +1,6 @@
 import { ETFSearch } from './ETFSearch';
 import type { PortfolioItem } from '../types';
+import { isKoreanSymbol } from '../utils/stockUtils';
 
 interface Props {
   portfolio: PortfolioItem[];
@@ -56,8 +57,17 @@ export function PortfolioBuilder({ portfolio, setPortfolio }: Props) {
               className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
             >
               <div className="flex-1">
-                <span className="font-semibold text-blue-600">{item.symbol}</span>
-                <span className="ml-2 text-gray-500 text-sm">{item.name}</span>
+                {isKoreanSymbol(item.symbol) ? (
+                  <>
+                    <span className="font-semibold text-blue-600">{item.name}</span>
+                    <span className="ml-2 text-gray-400 text-xs">{item.symbol}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-semibold text-blue-600">{item.symbol}</span>
+                    <span className="ml-2 text-gray-500 text-sm">{item.name}</span>
+                  </>
+                )}
               </div>
 
               <div className="flex items-center gap-2">

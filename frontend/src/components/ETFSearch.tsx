@@ -109,7 +109,7 @@ export function ETFSearch({ onAdd, existingSymbols }: Props) {
               handleDirectAdd();
             }
           }}
-          placeholder="ETF 검색 (예: SPY, QQQ, TQQQ)"
+          placeholder="ETF/주식 검색 (예: SPY, 삼성전자, 005930)"
           className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
         <button
@@ -140,7 +140,13 @@ export function ETFSearch({ onAdd, existingSymbols }: Props) {
               className="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
             >
               <span className="font-semibold text-blue-600">{etf.symbol}</span>
+              {etf.is_korean && (
+                <span className="ml-1 px-1.5 py-0.5 text-xs bg-red-100 text-red-600 rounded">KR</span>
+              )}
               <span className="ml-2 text-gray-600 text-sm">{etf.name}</span>
+              {etf.market && (
+                <span className="ml-1 text-gray-400 text-xs">({etf.market})</span>
+              )}
             </li>
           ))}
         </ul>

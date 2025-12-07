@@ -10,11 +10,13 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import type { DividendStats } from '../types';
+import type { DividendStats, PortfolioItem } from '../types';
 import { generateFullYearChartData } from '../utils/dividendChartUtils';
+import { isKoreanSymbol } from '../utils/stockUtils';
 
 interface Props {
   dividendStats: DividendStats;
+  portfolio?: PortfolioItem[];
 }
 
 // ETF별 고정 색상 (자주 사용되는 ETF)
@@ -86,8 +88,25 @@ const formatCurrency = (value: number): string => {
   return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-export function DividendSection({ dividendStats }: Props) {
+export function DividendSection({ dividendStats, portfolio = [] }: Props) {
   const [selectedYear, setSelectedYear] = useState<string>('all');
+
+  // symbol → name 매핑 (한국 종목 이름 표시용)
+  const symbolToName = useMemo(() => {
+    const map: Record<string, string> = {};
+    portfolio.forEach((item) => {
+      map[item.symbol] = item.name;
+    });
+    return map;
+  }, [portfolio]);
+
+  // 종목 표시명 반환 (한국 종목은 이름, 해외는 심볼)
+  const getDisplayName = (symbol: string): string => {
+    if (isKoreanSymbol(symbol) && symbolToName[symbol]) {
+      return symbolToName[symbol];
+    }
+    return symbol;
+  };
 
   // 연도 목록 추출
   const years = useMemo(() => {
@@ -264,7 +283,7 @@ export function DividendSection({ dividendStats }: Props) {
                     dataKey={etf}
                     stackId="a"
                     fill={getEtfColor(etf)}
-                    name={etf}
+                    name={getDisplayName(etf)}
                   />
                 ))}
               </>
@@ -302,7 +321,7 @@ export function DividendSection({ dividendStats }: Props) {
                     className="w-3 h-3 rounded-full"
                     style={{ backgroundColor: getEtfColor(etf) }}
                   />
-                  <span className="text-sm text-gray-700">{etf}</span>
+                  <span className="text-sm text-gray-700">{getDisplayName(etf)}</span>
                   <span className="text-sm font-medium text-gray-900">
                     {formatCurrency(amount)}
                   </span>

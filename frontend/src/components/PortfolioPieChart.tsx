@@ -1,5 +1,6 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import type { PortfolioItem } from '../types';
+import { isKoreanSymbol } from '../utils/stockUtils';
 
 interface Props {
   portfolio: PortfolioItem[];
@@ -24,9 +25,10 @@ export function PortfolioPieChart({ portfolio }: Props) {
   }
 
   const data = portfolio.map((item) => ({
-    name: item.symbol,
+    name: isKoreanSymbol(item.symbol) ? item.name : item.symbol,
     value: item.weight,
     fullName: item.name,
+    symbol: item.symbol,
   }));
 
   const totalWeight = portfolio.reduce((sum, item) => sum + item.weight, 0);
@@ -56,7 +58,11 @@ export function PortfolioPieChart({ portfolio }: Props) {
               formatter={(value: number) => [`${((value / totalWeight) * 100).toFixed(1)}%`, '비중']}
               labelFormatter={(name) => {
                 const item = data.find((d) => d.name === name);
-                return item ? `${item.name} (${item.fullName})` : name;
+                if (!item) return name;
+                // 한국 종목: 이름 (심볼), 해외 종목: 심볼 (이름)
+                return isKoreanSymbol(item.symbol)
+                  ? `${item.name} (${item.symbol})`
+                  : `${item.name} (${item.fullName})`;
               }}
             />
             <Legend />

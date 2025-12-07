@@ -8,6 +8,8 @@ export interface ETFInfo {
   symbol: string;
   name: string;
   expense_ratio?: number;
+  market?: string;
+  is_korean?: boolean;
 }
 
 export interface BacktestMetrics {
