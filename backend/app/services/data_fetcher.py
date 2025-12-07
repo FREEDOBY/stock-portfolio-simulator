@@ -205,7 +205,15 @@ class DataFetcher:
         ]
 
     def get_etf_info(self, symbol: str) -> Optional[dict]:
-        """ETF 정보 조회"""
+        """ETF/주식 정보 조회"""
+        # 한글 입력 감지 → korean_stock_service 사용
+        if contains_korean(symbol):
+            results = korean_stock_service.search(symbol, limit=1)
+            if results:
+                return {**results[0], "expense_ratio": None}
+            return None
+
+        # 해외 종목: yfinance 사용
         try:
             ticker = yf.Ticker(symbol)
             info = ticker.info

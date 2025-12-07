@@ -11,9 +11,10 @@ class KoreanStockService:
     CACHE_TTL = 3600  # 1시간
 
     def __init__(self):
-        self._ticker_cache: dict[str, str] = {}  # ticker -> name
-        self._name_cache: dict[str, str] = {}    # name -> ticker
+        self._ticker_cache: dict[str, dict] = {}  # ticker -> {name, market}
+        self._name_cache: dict[str, str] = {}     # name -> ticker
         self._cache_time: float = 0
+        self._is_loading: bool = False
 
     def _refresh_cache_if_needed(self):
         """캐시가 만료되었으면 새로고침"""
@@ -22,16 +23,23 @@ class KoreanStockService:
             self._load_all_tickers()
 
     def _load_all_tickers(self):
-        """전체 종목 목록 로드"""
+        """전체 종목 목록 로드 (시장 정보 포함)"""
+        if self._is_loading:
+            return
+        self._is_loading = True
+
         try:
-            # KOSPI + KOSDAQ 전체 종목
+            # KOSPI + KOSDAQ 전체 종목 (시장 정보 함께 저장)
             for market in ["KOSPI", "KOSDAQ"]:
                 tickers = pykrx.get_market_ticker_list(market=market)
                 for ticker in tickers:
                     try:
                         name = pykrx.get_market_ticker_name(ticker)
                         if name:
-                            self._ticker_cache[ticker] = name
+                            self._ticker_cache[ticker] = {
+                                "name": name,
+                                "market": market
+                            }
                             self._name_cache[name] = ticker
                     except Exception:
                         continue
@@ -39,6 +47,8 @@ class KoreanStockService:
             self._cache_time = time.time()
         except Exception as e:
             print(f"Failed to load Korean stock tickers: {e}")
+        finally:
+            self._is_loading = False
 
     def search(self, query: str, limit: int = 20) -> list[dict]:
         """
@@ -59,24 +69,24 @@ class KoreanStockService:
         # 숫자 6자리면 종목코드로 검색
         if query.isdigit() and len(query) == 6:
             if query in self._ticker_cache:
+                info = self._ticker_cache[query]
                 results.append({
                     "symbol": f"{query}.KS",
-                    "name": self._ticker_cache[query],
-                    "market": "KOSPI" if query in self._ticker_cache else "KOSDAQ",
+                    "name": info["name"],
+                    "market": info["market"],
                     "is_korean": True
                 })
             return results[:limit]
 
-        # 한글/영문 검색
+        # 한글/영문 검색 (캐시에서 시장 정보 직접 조회)
         query_lower = query.lower()
-        for ticker, name in self._ticker_cache.items():
+        for ticker, info in self._ticker_cache.items():
+            name = info["name"]
             if query in name or query_lower in name.lower():
-                # 시장 구분 (간단히 처리)
-                market = self._get_market(ticker)
                 results.append({
                     "symbol": f"{ticker}.KS",
                     "name": name,
-                    "market": market,
+                    "market": info["market"],
                     "is_korean": True
                 })
 
@@ -92,14 +102,6 @@ class KoreanStockService:
 
         return results[:limit]
 
-    def _get_market(self, ticker: str) -> str:
-        """종목의 시장 구분"""
-        try:
-            kospi_tickers = pykrx.get_market_ticker_list(market="KOSPI")
-            return "KOSPI" if ticker in kospi_tickers else "KOSDAQ"
-        except Exception:
-            return "KOSPI"
-
     def get_ticker_by_name(self, name: str) -> Optional[str]:
         """종목명으로 티커 조회"""
         self._refresh_cache_if_needed()
@@ -110,7 +112,8 @@ class KoreanStockService:
         self._refresh_cache_if_needed()
         # .KS, .KQ 접미사 제거
         clean_ticker = ticker.replace(".KS", "").replace(".KQ", "")
-        return self._ticker_cache.get(clean_ticker)
+        info = self._ticker_cache.get(clean_ticker)
+        return info["name"] if info else None
 
     def is_valid_korean_ticker(self, ticker: str) -> bool:
         """유효한 한국 종목인지 확인"""
