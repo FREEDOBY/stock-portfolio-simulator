@@ -11,8 +11,8 @@ export function calculateReturns(values: PortfolioValue[]): number[] {
   if (values.length === 0) return [];
   if (values.length === 1) return [0];
 
-  // DCA 모드 여부 확인 (invested 필드가 있으면 DCA)
-  const isDCA = values[0].invested !== undefined;
+  // DCA 모드 여부 확인 (invested 필드가 실제 값이 있으면 DCA)
+  const isDCA = values[0].invested != null;
 
   if (isDCA) {
     // 적립식: 각 날짜별로 누적 투자원금 대비 수익률 계산
