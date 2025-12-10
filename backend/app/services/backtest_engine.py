@@ -219,13 +219,14 @@ class BacktestEngine:
         # 투자 방식에 따른 분기
         portfolio_invested_amounts = {}  # 일별 누적 투자원금
         benchmark_invested_amounts = {}  # 벤치마크별 일별 누적 투자원금
+        holdings_history = {}  # 일별 보유주식수 기록
 
         if investment_type == "dca" and dca_settings:
             dca_amount = dca_settings["amount"]
             dca_frequency = dca_settings["frequency"]
 
             # 적립식 포트폴리오 계산
-            portfolio_values, portfolio_invested_amounts, total_invested = self._calculate_portfolio_values_dca(
+            portfolio_values, portfolio_invested_amounts, total_invested, holdings_history = self._calculate_portfolio_values_dca(
                 portfolio, price_data, common_dates,
                 initial_amount, dca_amount, dca_frequency, rebalance,
                 common_dates_set
@@ -250,7 +251,7 @@ class BacktestEngine:
             metrics = self._calculate_metrics(portfolio_values, total_invested)
         else:
             # 기존 거치식 로직
-            portfolio_values = self._calculate_portfolio_values(
+            portfolio_values, holdings_history = self._calculate_portfolio_values(
                 portfolio, price_data, common_dates, initial_amount, rebalance
             )
             total_invested = initial_amount
@@ -274,21 +275,12 @@ class BacktestEngine:
             symbols, start_date, end_date
         )
 
-        # 마지막 날짜의 보유 주식수 계산 (간소화)
-        last_date = common_dates[-1]
-        shares_held = {}
-        for item in portfolio:
-            symbol = item["symbol"]
-            weight = item["weight"]
-            price = price_data[symbol].loc[last_date, "close"]
-            final_value = list(portfolio_values.values())[-1]
-            shares_held[symbol] = (final_value * weight) / price
-
-        dividend_stats = self.calculate_dividend_stats(
+        # 정확한 배당 통계 계산 (일별 보유주식수 사용)
+        dividend_stats = self.calculate_dividend_stats_accurate(
             portfolio=portfolio,
             dividend_data=dividend_data,
             total_invested=total_invested,
-            shares_held=shares_held
+            holdings_history=holdings_history
         )
 
         # 응답 생성
@@ -327,8 +319,13 @@ class BacktestEngine:
         dates: list[date],
         initial_amount: float,
         rebalance: str
-    ) -> dict[date, float]:
-        """포트폴리오 일별 가치 계산"""
+    ) -> tuple[dict[date, float], dict[date, dict[str, float]]]:
+        """
+        포트폴리오 일별 가치 계산
+
+        Returns:
+            (values dict, holdings_history dict) - 일별 가치와 일별 보유주식수
+        """
         rebalance_dates = set(self.get_rebalance_dates(dates[0], dates[-1], rebalance))
 
         # 초기 포지션 설정
@@ -343,6 +340,7 @@ class BacktestEngine:
             holdings[symbol] = amount / price
 
         values = {}
+        holdings_history = {}  # 일별 보유주식수 기록
 
         for d in dates:
             # 현재 포트폴리오 가치 계산
@@ -351,6 +349,7 @@ class BacktestEngine:
                 for symbol in holdings
             )
             values[d] = total_value
+            holdings_history[d] = holdings.copy()  # 해당 날짜의 보유주식수 저장
 
             # 리밸런싱
             if d in rebalance_dates and d != dates[-1]:
@@ -362,7 +361,7 @@ class BacktestEngine:
                     amount = total_value * weight
                     holdings[symbol] = amount / price
 
-        return values
+        return values, holdings_history
 
     def _calculate_single_asset_values(
         self,
@@ -433,12 +432,12 @@ class BacktestEngine:
         dca_frequency: str,
         rebalance: str,
         available_dates: set[date]
-    ) -> tuple[dict[date, float], dict[date, float], float]:
+    ) -> tuple[dict[date, float], dict[date, float], float, dict[date, dict[str, float]]]:
         """
         적립식 포트폴리오 일별 가치 계산
 
         Returns:
-            (values dict, invested_amounts dict, total_invested)
+            (values dict, invested_amounts dict, total_invested, holdings_history dict)
         """
         # DCA 투자일 및 리밸런싱일 계산
         dca_dates = set(self.get_dca_dates(
@@ -450,6 +449,7 @@ class BacktestEngine:
         total_invested = 0.0
         values = {}
         invested_amounts = {}  # 일별 누적 투자원금
+        holdings_history = {}  # 일별 보유주식수 기록
         first_date = dates[0]
 
         for d in dates:
@@ -486,6 +486,7 @@ class BacktestEngine:
                 for symbol in [item["symbol"] for item in portfolio]
             )
             values[d] = total_value
+            holdings_history[d] = holdings.copy()  # 해당 날짜의 보유주식수 저장
 
             # 4. 리밸런싱 (DCA 이후 수행)
             if d in rebalance_dates and d != dates[-1] and total_value > 0:
@@ -497,7 +498,7 @@ class BacktestEngine:
                     amount = total_value * weight
                     holdings[symbol] = amount / price
 
-        return values, invested_amounts, total_invested
+        return values, invested_amounts, total_invested, holdings_history
 
     def _calculate_single_asset_values_dca(
         self,
@@ -545,6 +546,103 @@ class BacktestEngine:
 
         return values, invested_amounts, total_invested
 
+    def calculate_dividend_stats_accurate(
+        self,
+        portfolio: list[dict],
+        dividend_data: dict[str, pd.DataFrame],
+        total_invested: float,
+        holdings_history: dict[date, dict[str, float]]
+    ) -> dict:
+        """
+        정확한 배당 통계 계산 (배당일 기준 보유주식수 사용)
+
+        Args:
+            portfolio: 포트폴리오 구성
+            dividend_data: 심볼별 배당 데이터
+            total_invested: 총 투자 원금
+            holdings_history: 일별 보유 주식수 기록
+
+        Returns:
+            배당 통계 딕셔너리
+        """
+        total_dividends = 0.0
+        by_etf = {}
+        monthly_data_dict = {}  # {month: {total: 0, by_etf: {}}}
+
+        # 보유 기록이 있는 날짜들 정렬
+        sorted_holding_dates = sorted(holdings_history.keys()) if holdings_history else []
+
+        def get_shares_on_date(symbol: str, target_date: date) -> float:
+            """특정 날짜에 해당 심볼의 보유 주식수 반환"""
+            if not sorted_holding_dates:
+                return 0.0
+
+            # 배당일 이전의 가장 가까운 보유 기록 찾기
+            closest_date = None
+            for d in sorted_holding_dates:
+                if d <= target_date:
+                    closest_date = d
+                else:
+                    break
+
+            if closest_date is None:
+                return 0.0
+
+            return holdings_history[closest_date].get(symbol, 0.0)
+
+        for item in portfolio:
+            symbol = item["symbol"]
+
+            if symbol not in dividend_data or dividend_data[symbol].empty:
+                by_etf[symbol] = 0.0
+                continue
+
+            df = dividend_data[symbol]
+            symbol_total = 0.0
+
+            for div_date, row in df.iterrows():
+                # 배당일 기준 보유 주식수 조회
+                shares = get_shares_on_date(symbol, div_date)
+                div_amount = row['dividend'] * shares
+                symbol_total += div_amount
+                total_dividends += div_amount
+
+                # 월별 집계
+                month = f"{div_date.year}-{div_date.month:02d}"
+                if month not in monthly_data_dict:
+                    monthly_data_dict[month] = {'total': 0.0, 'by_etf': {}}
+                monthly_data_dict[month]['total'] += div_amount
+                if symbol not in monthly_data_dict[month]['by_etf']:
+                    monthly_data_dict[month]['by_etf'][symbol] = 0.0
+                monthly_data_dict[month]['by_etf'][symbol] += div_amount
+
+            by_etf[symbol] = round(symbol_total, 2)
+
+        # 월별 데이터 리스트 변환
+        monthly_data = []
+        for month in sorted(monthly_data_dict.keys()):
+            data = monthly_data_dict[month]
+            monthly_data.append({
+                'month': month,
+                'amount': round(data['total'], 2),
+                'by_etf': {k: round(v, 2) for k, v in data['by_etf'].items()}
+            })
+
+        # 배당 수익률 계산
+        dividend_yield = (total_dividends / total_invested * 100) if total_invested > 0 else 0.0
+
+        # 월평균 계산
+        num_months = len(monthly_data) if monthly_data else 1
+        monthly_average = total_dividends / num_months if num_months > 0 else 0.0
+
+        return {
+            'total_dividends': round(total_dividends, 2),
+            'dividend_yield': round(dividend_yield, 4),
+            'monthly_average': round(monthly_average, 2),
+            'monthly_data': monthly_data,
+            'by_etf': by_etf
+        }
+
     def calculate_dividend_stats(
         self,
         portfolio: list[dict],
@@ -553,7 +651,7 @@ class BacktestEngine:
         shares_held: dict[str, float]
     ) -> dict:
         """
-        배당 통계 계산
+        배당 통계 계산 (레거시 - 단일 보유주식수 사용)
 
         Args:
             portfolio: 포트폴리오 구성

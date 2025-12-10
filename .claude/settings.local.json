@@ -8,7 +8,9 @@
       "Bash(python -m pytest tests/test_backtest_engine.py -v --tb=short)",
       "Bash(npm run build:*)",
       "Bash(python -m pytest:*)",
-      "Bash(npm run test:*)"
+      "Bash(npm run test:*)",
+      "Bash(cat:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

@@ -85,6 +85,9 @@ class ExchangeRateService:
             if not df.empty:
                 df = df[['Close']].copy()
                 df.columns = ['rate']
+                # timezone 제거 (yfinance는 timezone-aware 반환)
+                if df.index.tz is not None:
+                    df.index = df.index.tz_localize(None)
                 df.index = pd.to_datetime(df.index).date
 
                 self._historical_cache = df
