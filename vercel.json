@@ -10,10 +10,7 @@
     },
     {
       "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "includeFiles": "api/**"
-      }
+      "use": "@vercel/python"
     }
   ],
   "routes": [

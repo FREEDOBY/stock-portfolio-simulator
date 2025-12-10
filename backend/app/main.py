@@ -7,23 +7,31 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routers import etf, backtest
-from .services.korean_stock_service import korean_stock_service
 
+# Vercel 서버리스 환경 체크
+IS_VERCEL = os.getenv("VERCEL") is not None
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """앱 생명주기 관리"""
-    # 시작 시: 한국 주식 캐시 백그라운드 로드
-    asyncio.create_task(asyncio.to_thread(korean_stock_service._load_all_tickers))
-    yield
-    # 종료 시: 정리 작업 (필요 시)
+if not IS_VERCEL:
+    from .services.korean_stock_service import korean_stock_service
 
-app = FastAPI(
-    title="주식 포트폴리오 시뮬레이터 API",
-    description="ETF 포트폴리오 백테스트 시뮬레이터",
-    version="1.0.0",
-    lifespan=lifespan
-)
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        """앱 생명주기 관리 (로컬 전용)"""
+        asyncio.create_task(asyncio.to_thread(korean_stock_service._load_all_tickers))
+        yield
+
+    app = FastAPI(
+        title="주식 포트폴리오 시뮬레이터 API",
+        description="ETF 포트폴리오 백테스트 시뮬레이터",
+        version="1.0.0",
+        lifespan=lifespan
+    )
+else:
+    app = FastAPI(
+        title="주식 포트폴리오 시뮬레이터 API",
+        description="ETF 포트폴리오 백테스트 시뮬레이터",
+        version="1.0.0"
+    )
 
 # CORS 설정
 allow_origins = [
