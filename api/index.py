@@ -1,5 +1,6 @@
 """Vercel Serverless Function 진입점"""
+from mangum import Mangum
 from app.main import app
 
-# Vercel이 인식하는 handler
-handler = app
+# Mangum: ASGI -> AWS Lambda/Vercel 어댑터
+handler = Mangum(app, lifespan="off")
