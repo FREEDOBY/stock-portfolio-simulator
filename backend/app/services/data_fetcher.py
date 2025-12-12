@@ -8,8 +8,15 @@ from functools import lru_cache
 from typing import Optional
 from dotenv import load_dotenv
 
-from .korean_stock_service import korean_stock_service
 from .exchange_rate import exchange_rate_service
+
+# Vercel 서버리스 환경 체크 - pykrx가 pkg_resources 필요
+IS_VERCEL = os.getenv("VERCEL") is not None
+
+if not IS_VERCEL:
+    from .korean_stock_service import korean_stock_service
+else:
+    korean_stock_service = None
 
 # .env 파일 로드
 load_dotenv()
@@ -136,12 +143,13 @@ class DataFetcher:
         is_korean_code = query_stripped.isdigit() and len(query_stripped) == 6
 
         if is_korean_query or is_korean_code:
-            # 한국 종목 검색
-            korean_results = korean_stock_service.search(query_stripped)
-            for item in korean_results:
-                if item["symbol"] not in existing_symbols:
-                    results.append(item)
-                    existing_symbols.add(item["symbol"])
+            # 한국 종목 검색 (Vercel에서는 비활성화)
+            if korean_stock_service is not None:
+                korean_results = korean_stock_service.search(query_stripped)
+                for item in korean_results:
+                    if item["symbol"] not in existing_symbols:
+                        results.append(item)
+                        existing_symbols.add(item["symbol"])
             return results[:20]
 
         # 해외 ETF/주식 검색
@@ -206,11 +214,12 @@ class DataFetcher:
 
     def get_etf_info(self, symbol: str) -> Optional[dict]:
         """ETF/주식 정보 조회"""
-        # 한글 입력 감지 → korean_stock_service 사용
+        # 한글 입력 감지 → korean_stock_service 사용 (Vercel에서는 비활성화)
         if contains_korean(symbol):
-            results = korean_stock_service.search(symbol, limit=1)
-            if results:
-                return {**results[0], "expense_ratio": None}
+            if korean_stock_service is not None:
+                results = korean_stock_service.search(symbol, limit=1)
+                if results:
+                    return {**results[0], "expense_ratio": None}
             return None
 
         # 해외 종목: yfinance 사용
