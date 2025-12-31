@@ -9,6 +9,7 @@ class InvestmentType(str, Enum):
     """투자 방식"""
     LUMP_SUM = "lump_sum"  # 거치식
     DCA = "dca"            # 적립식
+    MA_DCA = "ma_dca"      # 이동평균 기반 적립식
 
 
 class DCAFrequency(str, Enum):
@@ -29,6 +30,31 @@ class DCASettings(BaseModel):
         ...,
         gt=0,
         description="주기별 투자 금액"
+    )
+
+
+class MADCASettings(BaseModel):
+    """이동평균 기반 적립식 투자 설정"""
+    frequency: DCAFrequency = Field(
+        default=DCAFrequency.MONTHLY,
+        description="투자 주기"
+    )
+    amount: float = Field(
+        ...,
+        gt=0,
+        description="주기별 기본 투자 금액"
+    )
+    ma_period: int = Field(
+        default=120,
+        ge=5,
+        le=365,
+        description="이동평균 기간 (일)"
+    )
+    multiplier: float = Field(
+        default=2.0,
+        ge=1.0,
+        le=5.0,
+        description="저가 매수 배수 (현재가 < MA일 때)"
     )
 
 
@@ -55,6 +81,10 @@ class BacktestRequest(BaseModel):
     dca_settings: Optional[DCASettings] = Field(
         default=None,
         description="적립식 설정 (investment_type이 dca일 때 사용)"
+    )
+    ma_dca_settings: Optional[MADCASettings] = Field(
+        default=None,
+        description="이동평균 기반 적립식 설정 (investment_type이 ma_dca일 때 사용)"
     )
 
 

@@ -239,6 +239,180 @@ class TestEdgeCases:
         assert abs(sum(item["weight"] for item in normalized) - 1.0) < 0.001
 
 
+class TestMADCAInvestment:
+    """MA-DCA(이동평균 기반 적립식) 투자 테스트"""
+
+    def test_calculate_moving_average_basic(self):
+        """이동평균 계산 기본 테스트"""
+        engine = BacktestEngine()
+        # 10일간의 가격 데이터
+        dates = pd.date_range(start='2023-01-01', periods=10, freq='D')
+        price_df = pd.DataFrame({
+            'close': [100, 102, 104, 103, 105, 107, 106, 108, 110, 109]
+        }, index=dates)
+
+        # 5일 이동평균 계산
+        ma = engine.calculate_moving_average(price_df, dates[9].date(), period=5)
+        # 마지막 5일: 107, 106, 108, 110, 109 = 평균 108
+        expected = (107 + 106 + 108 + 110 + 109) / 5
+        assert abs(ma - expected) < 0.001
+
+    def test_calculate_moving_average_insufficient_data(self):
+        """이동평균 계산에 데이터가 부족한 경우"""
+        engine = BacktestEngine()
+        dates = pd.date_range(start='2023-01-01', periods=5, freq='D')
+        price_df = pd.DataFrame({
+            'close': [100, 102, 104, 103, 105]
+        }, index=dates)
+
+        # 10일 이동평균을 5일 데이터로 계산 시도 -> None 반환
+        ma = engine.calculate_moving_average(price_df, dates[4].date(), period=10)
+        assert ma is None
+
+    def test_ma_dca_basic_flow(self):
+        """MA-DCA 기본 흐름 테스트"""
+        engine = BacktestEngine()
+        portfolio = [{"symbol": "SPY", "weight": 1.0}]
+
+        result = engine.run_backtest(
+            portfolio=portfolio,
+            start_date=date(2020, 1, 1),
+            end_date=date(2020, 12, 31),
+            initial_amount=10000,
+            rebalance="none",
+            investment_type="ma_dca",
+            ma_dca_settings={
+                "frequency": "monthly",
+                "amount": 1000,
+                "ma_period": 120,
+                "multiplier": 2.0
+            }
+        )
+
+        assert "portfolio_values" in result
+        assert "total_invested" in result
+        assert len(result["portfolio_values"]) > 0
+        # MA-DCA도 invested 필드가 있어야 함
+        assert "invested" in result["portfolio_values"][0]
+
+    def test_ma_dca_returns_invested_amounts(self):
+        """MA-DCA 모드에서 invested 필드가 응답에 포함되는지 확인"""
+        engine = BacktestEngine()
+        portfolio = [{"symbol": "SPY", "weight": 1.0}]
+
+        result = engine.run_backtest(
+            portfolio=portfolio,
+            start_date=date(2023, 1, 1),
+            end_date=date(2023, 6, 30),
+            initial_amount=10000,
+            rebalance="none",
+            investment_type="ma_dca",
+            ma_dca_settings={
+                "frequency": "monthly",
+                "amount": 1000,
+                "ma_period": 120,
+                "multiplier": 2.0
+            }
+        )
+
+        # MA-DCA 모드에서는 invested 필드가 있어야 함
+        assert "portfolio_values" in result
+        first_point = result["portfolio_values"][0]
+        assert "invested" in first_point
+
+    def test_ma_dca_invested_accumulates(self):
+        """MA-DCA 투자원금이 누적되는지 확인"""
+        engine = BacktestEngine()
+        portfolio = [{"symbol": "SPY", "weight": 1.0}]
+
+        result = engine.run_backtest(
+            portfolio=portfolio,
+            start_date=date(2023, 1, 1),
+            end_date=date(2023, 6, 30),
+            initial_amount=10000,
+            rebalance="none",
+            investment_type="ma_dca",
+            ma_dca_settings={
+                "frequency": "monthly",
+                "amount": 1000,
+                "ma_period": 120,
+                "multiplier": 2.0
+            }
+        )
+
+        portfolio_values = result["portfolio_values"]
+        first_invested = portfolio_values[0].get("invested")
+        last_invested = portfolio_values[-1].get("invested")
+
+        # 마지막 투자원금 > 첫 투자원금
+        assert last_invested > first_invested
+
+    def test_ma_dca_benchmark_also_uses_ma(self):
+        """벤치마크도 MA-DCA 로직 적용 확인"""
+        engine = BacktestEngine()
+        portfolio = [{"symbol": "VTI", "weight": 1.0}]
+
+        result = engine.run_backtest(
+            portfolio=portfolio,
+            start_date=date(2023, 1, 1),
+            end_date=date(2023, 6, 30),
+            initial_amount=10000,
+            rebalance="none",
+            investment_type="ma_dca",
+            ma_dca_settings={
+                "frequency": "monthly",
+                "amount": 1000,
+                "ma_period": 120,
+                "multiplier": 2.0
+            }
+        )
+
+        # 벤치마크에도 invested 필드가 있어야 함
+        assert "benchmarks" in result
+        assert "QQQ" in result["benchmarks"]
+        qqq_first = result["benchmarks"]["QQQ"][0]
+        assert "invested" in qqq_first
+
+    def test_ma_dca_validation_error_missing_settings(self):
+        """MA-DCA 설정 없이 ma_dca 타입 요청 시 에러"""
+        engine = BacktestEngine()
+
+        with pytest.raises(ValueError):
+            engine.run_backtest(
+                portfolio=[{"symbol": "SPY", "weight": 1.0}],
+                start_date=date(2020, 1, 1),
+                end_date=date(2020, 12, 31),
+                initial_amount=10000,
+                rebalance="none",
+                investment_type="ma_dca"
+                # ma_dca_settings 없음 -> 에러
+            )
+
+    def test_ma_dca_total_invested_matches_last(self):
+        """total_invested가 마지막 invested와 일치하는지 확인"""
+        engine = BacktestEngine()
+        portfolio = [{"symbol": "SPY", "weight": 1.0}]
+
+        result = engine.run_backtest(
+            portfolio=portfolio,
+            start_date=date(2023, 1, 1),
+            end_date=date(2023, 6, 30),
+            initial_amount=10000,
+            rebalance="none",
+            investment_type="ma_dca",
+            ma_dca_settings={
+                "frequency": "monthly",
+                "amount": 1000,
+                "ma_period": 120,
+                "multiplier": 2.0
+            }
+        )
+
+        last_invested = result["portfolio_values"][-1].get("invested")
+        total_invested = result["total_invested"]
+        assert last_invested == total_invested
+
+
 class TestDCAInvestedAmounts:
     """DCA(적립식) 투자 시 일별 누적 투자원금 테스트"""
 

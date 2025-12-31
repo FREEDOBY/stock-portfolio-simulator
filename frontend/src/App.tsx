@@ -25,6 +25,8 @@ const getDefaultSettings = (): Settings => {
     investmentType: 'lump_sum',
     dcaFrequency: 'monthly',
     dcaAmount: 500,
+    maPeriod: 120,
+    maMultiplier: 2.0,
   };
 };
 
@@ -81,6 +83,15 @@ function App() {
         dca_settings:
           settings.investmentType === 'dca'
             ? { frequency: settings.dcaFrequency, amount: settings.dcaAmount }
+            : undefined,
+        ma_dca_settings:
+          settings.investmentType === 'ma_dca'
+            ? {
+                frequency: settings.dcaFrequency,
+                amount: settings.dcaAmount,
+                ma_period: settings.maPeriod,
+                multiplier: settings.maMultiplier,
+              }
             : undefined,
       });
 

@@ -119,8 +119,32 @@ class BacktestEngine:
         frequency: str,
         available_dates: set[date] = None
     ) -> list[date]:
-        """적립식 투자 날짜 목록 반환"""
-        dates = [start_date]  # 첫 투자일 포함
+        """적립식 투자 날짜 목록 반환
+
+        월별(monthly) 투자의 경우, 각 월의 첫 거래일을 투자일로 선택합니다.
+        주별/일별 투자는 시작일 기준으로 주기적으로 계산합니다.
+        """
+        # 월별 투자는 각 월의 첫 거래일을 사용
+        if frequency == "monthly" and available_dates:
+            sorted_available = sorted(available_dates)
+            result_dates = []
+            current_month = None
+
+            for d in sorted_available:
+                if d < start_date:
+                    continue
+                if d > end_date:
+                    break
+
+                month_key = (d.year, d.month)
+                if current_month != month_key:
+                    result_dates.append(d)
+                    current_month = month_key
+
+            return result_dates
+
+        # 기타 주기는 시작일 기준으로 계산
+        dates = [start_date]
         current = start_date
 
         if frequency == "daily":
@@ -129,8 +153,6 @@ class BacktestEngine:
             delta = timedelta(weeks=1)
         elif frequency == "biweekly":
             delta = timedelta(weeks=2)
-        elif frequency == "monthly":
-            delta = relativedelta(months=1)
         else:
             return [start_date]
 
@@ -169,6 +191,37 @@ class BacktestEngine:
             for item in portfolio
         ]
 
+    def calculate_moving_average(
+        self,
+        price_data: pd.DataFrame,
+        target_date: date,
+        period: int
+    ) -> Optional[float]:
+        """
+        특정 날짜 기준 N일 이동평균 계산
+
+        Args:
+            price_data: 가격 데이터 (close 컬럼 포함)
+            target_date: 기준 날짜
+            period: 이동평균 기간
+
+        Returns:
+            이동평균값 (데이터 부족시 None)
+        """
+        # date까지의 데이터 필터링
+        available_dates = []
+        for d in price_data.index:
+            d_date = d.date() if hasattr(d, 'date') else d
+            if d_date <= target_date:
+                available_dates.append(d)
+        if len(available_dates) < period:
+            return None
+
+        # 최근 period일의 종가 평균
+        recent_dates = available_dates[-period:]
+        ma_value = price_data.loc[recent_dates, 'close'].mean()
+        return float(ma_value)
+
     def run_backtest(
         self,
         portfolio: list[dict],
@@ -177,7 +230,8 @@ class BacktestEngine:
         initial_amount: float = 10000,
         rebalance: str = "quarterly",
         investment_type: str = "lump_sum",
-        dca_settings: Optional[dict] = None
+        dca_settings: Optional[dict] = None,
+        ma_dca_settings: Optional[dict] = None
     ) -> dict:
         """백테스트 실행"""
         if not portfolio:
@@ -186,6 +240,10 @@ class BacktestEngine:
         # DCA 유효성 검사
         if investment_type == "dca" and not dca_settings:
             raise ValueError("DCA settings required for DCA investment type")
+
+        # MA-DCA 유효성 검사
+        if investment_type == "ma_dca" and not ma_dca_settings:
+            raise ValueError("MA-DCA settings required for MA-DCA investment type")
 
         # 비중 정규화
         portfolio = self.normalize_weights(portfolio)
@@ -221,7 +279,41 @@ class BacktestEngine:
         benchmark_invested_amounts = {}  # 벤치마크별 일별 누적 투자원금
         holdings_history = {}  # 일별 보유주식수 기록
 
-        if investment_type == "dca" and dca_settings:
+        if investment_type == "ma_dca" and ma_dca_settings:
+            # MA-DCA (이동평균 기반 적립식)
+            dca_amount = ma_dca_settings["amount"]
+            dca_frequency = ma_dca_settings["frequency"]
+            ma_period = ma_dca_settings.get("ma_period", 120)
+            multiplier = ma_dca_settings.get("multiplier", 2.0)
+
+            # MA-DCA 포트폴리오 계산
+            portfolio_values, portfolio_invested_amounts, total_invested, holdings_history = self._calculate_portfolio_values_ma_dca(
+                portfolio, price_data, common_dates,
+                initial_amount, dca_amount, dca_frequency,
+                ma_period, multiplier, rebalance,
+                common_dates_set
+            )
+
+            # MA-DCA 벤치마크 계산
+            benchmarks = {}
+            benchmark_metrics = {}
+            for benchmark in self.BENCHMARKS:
+                bench_values, bench_invested_amounts, bench_invested = self._calculate_single_asset_values_ma_dca(
+                    price_data[benchmark], common_dates,
+                    initial_amount, dca_amount, dca_frequency,
+                    ma_period, multiplier,
+                    common_dates_set
+                )
+                benchmarks[benchmark] = bench_values
+                benchmark_invested_amounts[benchmark] = bench_invested_amounts
+                benchmark_metrics[benchmark] = self._calculate_metrics(
+                    bench_values, bench_invested
+                )
+
+            # MA-DCA 지표 계산 (총 투자 원금 기준)
+            metrics = self._calculate_metrics(portfolio_values, total_invested)
+
+        elif investment_type == "dca" and dca_settings:
             dca_amount = dca_settings["amount"]
             dca_frequency = dca_settings["frequency"]
 
@@ -539,6 +631,169 @@ class BacktestEngine:
                 total_invested += dca_amount
                 price = price_df.loc[d, "close"]
                 shares += dca_amount / price
+
+            # 일별 누적 투자원금 기록
+            invested_amounts[d] = total_invested
+            values[d] = shares * price_df.loc[d, "close"]
+
+        return values, invested_amounts, total_invested
+
+    def _calculate_portfolio_values_ma_dca(
+        self,
+        portfolio: list[dict],
+        price_data: dict[str, pd.DataFrame],
+        dates: list[date],
+        initial_amount: float,
+        dca_amount: float,
+        dca_frequency: str,
+        ma_period: int,
+        multiplier: float,
+        rebalance: str,
+        available_dates: set[date]
+    ) -> tuple[dict[date, float], dict[date, float], float, dict[date, dict[str, float]]]:
+        """
+        이동평균 기반 적립식 포트폴리오 일별 가치 계산
+
+        현재가 < MA일 때: 기본 금액 * multiplier 매수
+        현재가 >= MA일 때: 기본 금액 매수
+
+        Returns:
+            (values dict, invested_amounts dict, total_invested, holdings_history dict)
+        """
+        # DCA 투자일 및 리밸런싱일 계산
+        dca_dates = set(self.get_dca_dates(
+            dates[0], dates[-1], dca_frequency, available_dates
+        ))
+        rebalance_dates = set(self.get_rebalance_dates(dates[0], dates[-1], rebalance))
+
+        holdings = {}  # symbol -> shares
+        total_invested = 0.0
+        values = {}
+        invested_amounts = {}  # 일별 누적 투자원금
+        holdings_history = {}  # 일별 보유주식수 기록
+        first_date = dates[0]
+        portfolio_symbols = [item["symbol"] for item in portfolio]
+
+        def get_portfolio_ma_ratio(d: date) -> Optional[float]:
+            """포트폴리오 전체의 가중 평균 (현재가/MA) 비율 계산"""
+            total_ratio = 0.0
+            total_weight = 0.0
+            for item in portfolio:
+                symbol = item["symbol"]
+                weight = item["weight"]
+                ma = self.calculate_moving_average(price_data[symbol], d, ma_period)
+                if ma is not None and ma > 0:
+                    current_price = price_data[symbol].loc[d, "close"]
+                    total_ratio += (current_price / ma) * weight
+                    total_weight += weight
+            if total_weight == 0:
+                return None
+            return total_ratio / total_weight  # 1.0 미만이면 현재가 < MA
+
+        for d in dates:
+            # 1. 첫날 투자 (초기 투자금 또는 DCA 금액)
+            if d == first_date:
+                first_investment = initial_amount if initial_amount > 0 else dca_amount
+                if first_investment > 0:
+                    total_invested += first_investment
+                    for item in portfolio:
+                        symbol = item["symbol"]
+                        weight = item["weight"]
+                        price = price_data[symbol].loc[d, "close"]
+                        amount = first_investment * weight
+                        holdings[symbol] = holdings.get(symbol, 0) + amount / price
+
+            # 2. DCA 투자일에 MA 기반 매수 (첫날 제외)
+            elif d in dca_dates:
+                # MA 비율 계산
+                ma_ratio = get_portfolio_ma_ratio(d)
+
+                # MA 데이터가 충분하고, 현재가 < MA (ratio < 1.0)이면 배수 적용
+                if ma_ratio is not None and ma_ratio < 1.0:
+                    actual_amount = dca_amount * multiplier
+                else:
+                    actual_amount = dca_amount
+
+                total_invested += actual_amount
+                for item in portfolio:
+                    symbol = item["symbol"]
+                    weight = item["weight"]
+                    price = price_data[symbol].loc[d, "close"]
+                    additional_amount = actual_amount * weight
+                    holdings[symbol] = holdings.get(symbol, 0) + additional_amount / price
+
+            # 일별 누적 투자원금 기록
+            invested_amounts[d] = total_invested
+
+            # 3. 현재 포트폴리오 가치 계산
+            total_value = sum(
+                holdings.get(symbol, 0) * price_data[symbol].loc[d, "close"]
+                for symbol in portfolio_symbols
+            )
+            values[d] = total_value
+            holdings_history[d] = holdings.copy()
+
+            # 4. 리밸런싱 (DCA 이후 수행)
+            if d in rebalance_dates and d != dates[-1] and total_value > 0:
+                holdings = {}
+                for item in portfolio:
+                    symbol = item["symbol"]
+                    weight = item["weight"]
+                    price = price_data[symbol].loc[d, "close"]
+                    amount = total_value * weight
+                    holdings[symbol] = amount / price
+
+        return values, invested_amounts, total_invested, holdings_history
+
+    def _calculate_single_asset_values_ma_dca(
+        self,
+        price_df: pd.DataFrame,
+        dates: list[date],
+        initial_amount: float,
+        dca_amount: float,
+        dca_frequency: str,
+        ma_period: int,
+        multiplier: float,
+        available_dates: set[date]
+    ) -> tuple[dict[date, float], dict[date, float], float]:
+        """
+        단일 자산 이동평균 기반 적립식 일별 가치 계산
+
+        Returns:
+            (values dict, invested_amounts dict, total_invested)
+        """
+        dca_dates = set(self.get_dca_dates(
+            dates[0], dates[-1], dca_frequency, available_dates
+        ))
+
+        shares = 0.0
+        total_invested = 0.0
+        values = {}
+        invested_amounts = {}  # 일별 누적 투자원금
+        first_date = dates[0]
+
+        for d in dates:
+            # 첫날 투자 (초기 투자금 또는 DCA 금액)
+            if d == first_date:
+                first_investment = initial_amount if initial_amount > 0 else dca_amount
+                if first_investment > 0:
+                    total_invested += first_investment
+                    price = price_df.loc[d, "close"]
+                    shares += first_investment / price
+
+            # DCA 투자일 (첫날 제외)
+            elif d in dca_dates:
+                ma = self.calculate_moving_average(price_df, d, ma_period)
+                current_price = price_df.loc[d, "close"]
+
+                # MA 데이터가 충분하고, 현재가 < MA이면 배수 적용
+                if ma is not None and current_price < ma:
+                    actual_amount = dca_amount * multiplier
+                else:
+                    actual_amount = dca_amount
+
+                total_invested += actual_amount
+                shares += actual_amount / current_price
 
             # 일별 누적 투자원금 기록
             invested_amounts[d] = total_invested

@@ -56,12 +56,19 @@ export interface BacktestResult {
 
 export type BenchmarkType = 'QQQ' | 'SPY';
 
-export type InvestmentType = 'lump_sum' | 'dca';
+export type InvestmentType = 'lump_sum' | 'dca' | 'ma_dca';
 export type DCAFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly';
 
 export interface DCASettings {
   frequency: DCAFrequency;
   amount: number;
+}
+
+export interface MADCASettings {
+  frequency: DCAFrequency;
+  amount: number;
+  ma_period: number;
+  multiplier: number;
 }
 
 export interface BacktestRequest {
@@ -72,6 +79,7 @@ export interface BacktestRequest {
   rebalance: string;
   investment_type: InvestmentType;
   dca_settings?: DCASettings;
+  ma_dca_settings?: MADCASettings;
 }
 
 export interface SavedPortfolio {

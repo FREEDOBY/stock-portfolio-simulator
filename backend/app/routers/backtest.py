@@ -26,6 +26,14 @@ async def run_backtest(request: BacktestRequest):
                 detail="DCA settings required for DCA investment type"
             )
 
+    # MA-DCA 설정 유효성 검증
+    if request.investment_type == InvestmentType.MA_DCA:
+        if not request.ma_dca_settings:
+            raise HTTPException(
+                status_code=400,
+                detail="MA-DCA settings required for MA-DCA investment type"
+            )
+
     try:
         result = backtest_engine.run_backtest(
             portfolio=[
@@ -40,6 +48,10 @@ async def run_backtest(request: BacktestRequest):
             dca_settings=(
                 request.dca_settings.model_dump()
                 if request.dca_settings else None
+            ),
+            ma_dca_settings=(
+                request.ma_dca_settings.model_dump()
+                if request.ma_dca_settings else None
             )
         )
 
