@@ -98,7 +98,7 @@ class TestFREDMacroIntegration:
 
         result = fetcher.fetch_category("liquidity")
 
-        expected_ids = {"FEDFUNDS", "DGS10", "DGS2", "M2SL", "WALCL", "RRPONTSYD"}
+        expected_ids = {"FEDFUNDS", "DGS10", "DGS2", "M2SL", "WALCL", "RRPONTSYD", "BCNSDODNS", "DRTSCILM"}
         assert set(result.keys()) == expected_ids
 
     # IT-004: FRED 실패 + Yahoo 성공 시 부분 데이터 반환

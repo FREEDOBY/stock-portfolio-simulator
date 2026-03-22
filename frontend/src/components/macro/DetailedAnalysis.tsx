@@ -1,19 +1,29 @@
 import { useState, useEffect, useMemo } from 'react';
-import { fetchCategoryDetail } from '../../api/macro';
+import { fetchCategoryDetail, fetchSignalHistory } from '../../api/macro';
 import { CATEGORY_CONFIG } from '../../types/macro';
 import { BusinessCycleTab } from './tabs/BusinessCycleTab';
 import { LiquidityTab } from './tabs/LiquidityTab';
 import { TechnicalTab } from './tabs/TechnicalTab';
 import { SentimentTab } from './tabs/SentimentTab';
 import { ValuationTab } from './tabs/ValuationTab';
+import { LaborHouseholdTab } from './tabs/LaborHouseholdTab';
+import {
+  NBER_RECESSIONS,
+  MARKET_CORRECTIONS,
+  filterOverlaysByPeriod,
+  type CrisisOverlay,
+  type SignalMarker,
+} from './charts/crisisOverlayConfig';
 
-const TAB_IDS = ['business_cycle', 'liquidity', 'technical', 'sentiment', 'valuation'] as const;
+const TAB_IDS = ['business_cycle', 'liquidity', 'technical', 'sentiment', 'valuation', 'labor_household'] as const;
 type TabId = typeof TAB_IDS[number];
 
 const PERIOD_OPTIONS = [
   { id: '3y', label: '3Y', months: 36 },
   { id: '5y', label: '5Y', months: 60 },
   { id: '10y', label: '10Y', months: 120 },
+  { id: '20y', label: '20Y', months: 240 },
+  { id: '30y', label: '30Y', months: 360 },
 ] as const;
 type PeriodId = typeof PERIOD_OPTIONS[number]['id'];
 
@@ -87,6 +97,10 @@ export function DetailedAnalysis({ initialTab }: Props) {
   const [period, setPeriod] = useState<PeriodId>('10y');
   const [rawData, setRawData] = useState<Record<string, unknown> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showRecessions, setShowRecessions] = useState(true);
+  const [showCorrections, setShowCorrections] = useState(true);
+  const [showMarkers, setShowMarkers] = useState(true);
+  const [signalMarkers, setSignalMarkers] = useState<SignalMarker[]>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -104,6 +118,24 @@ export function DetailedAnalysis({ initialTab }: Props) {
     load();
   }, [activeTab]);
 
+  // 시그널 히스토리 로드 (1회)
+  useEffect(() => {
+    fetchSignalHistory()
+      .then((history: Array<{ date: string; signal_id: number; new_status: string; reason: string }>) => {
+        setSignalMarkers(
+          history
+            .filter((h) => h.new_status === 'buy' || h.new_status === 'sell')
+            .map((h) => ({
+              date: h.date,
+              type: h.new_status as 'buy' | 'sell',
+              signal_id: h.signal_id,
+              reason: h.reason,
+            }))
+        );
+      })
+      .catch(() => setSignalMarkers([]));
+  }, []);
+
   // 기간 필터링 적용
   const selectedMonths = PERIOD_OPTIONS.find((p) => p.id === period)?.months ?? 120;
   const data = useMemo(() => {
@@ -111,20 +143,36 @@ export function DetailedAnalysis({ initialTab }: Props) {
     return filterAllSeries(rawData, selectedMonths);
   }, [rawData, selectedMonths]);
 
+  // 기간 필터된 오버레이
+  const filteredOverlays = useMemo(() => {
+    const overlays: CrisisOverlay[] = [];
+    if (showRecessions) overlays.push(...filterOverlaysByPeriod(NBER_RECESSIONS, selectedMonths));
+    if (showCorrections) overlays.push(...filterOverlaysByPeriod(MARKET_CORRECTIONS, selectedMonths));
+    return overlays;
+  }, [showRecessions, showCorrections, selectedMonths]);
+
+  const activeMarkers = showMarkers ? signalMarkers : [];
+
+  type TabData = Record<string, { data: Array<{ date: string; value: number }> }>;
+
   const renderTabContent = () => {
     if (!data) return null;
 
+    const overlayProps = { crisisOverlays: filteredOverlays, signalMarkers: activeMarkers };
+
     switch (activeTab) {
       case 'business_cycle':
-        return <BusinessCycleTab data={data as Record<string, { data: Array<{ date: string; value: number }> }>} />;
+        return <BusinessCycleTab data={data as TabData} {...overlayProps} />;
       case 'liquidity':
-        return <LiquidityTab data={data as Record<string, { data: Array<{ date: string; value: number }> }>} />;
+        return <LiquidityTab data={data as TabData} {...overlayProps} />;
       case 'technical':
-        return <TechnicalTab data={data} />;
+        return <TechnicalTab data={data} {...overlayProps} />;
       case 'sentiment':
-        return <SentimentTab data={data as Record<string, { data: Array<{ date: string; value: number }> }>} />;
+        return <SentimentTab data={data as TabData} {...overlayProps} />;
       case 'valuation':
-        return <ValuationTab data={data as Record<string, { data: Array<{ date: string; value: number }> }>} />;
+        return <ValuationTab data={data as TabData} {...overlayProps} />;
+      case 'labor_household':
+        return <LaborHouseholdTab data={data as TabData} {...overlayProps} />;
       default:
         return null;
     }
@@ -132,8 +180,8 @@ export function DetailedAnalysis({ initialTab }: Props) {
 
   return (
     <div className="max-w-7xl mx-auto space-y-4">
-      {/* 탭 버튼 + 기간 선택 */}
-      <div className="flex items-center justify-between bg-[#111827] border border-slate-700/50 rounded-lg p-1.5">
+      {/* 줄 1: 탭 버튼 */}
+      <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-1.5">
         <div className="flex gap-1 overflow-x-auto">
           {TAB_IDS.map((tabId) => {
             const config = CATEGORY_CONFIG[tabId];
@@ -157,22 +205,62 @@ export function DetailedAnalysis({ initialTab }: Props) {
             );
           })}
         </div>
+      </div>
+
+      {/* 줄 2: 오버레이 토글 + 기간 선택 */}
+      <div className="flex items-center justify-between bg-[#111827] border border-slate-700/50 rounded-lg p-1.5">
+        {/* 오버레이 토글 */}
+        <div className="flex gap-0.5 bg-[#0a0e17] rounded p-0.5">
+          <button
+            onClick={() => setShowRecessions((v) => !v)}
+            className={`px-2.5 py-1 text-xs font-mono rounded transition-all ${
+              showRecessions
+                ? 'bg-slate-500/20 border border-slate-500/40 text-slate-300'
+                : 'text-slate-700 border border-transparent'
+            }`}
+            title="NBER 경기침체 구간"
+          >
+            Recession
+          </button>
+          <button
+            onClick={() => setShowCorrections((v) => !v)}
+            className={`px-2.5 py-1 text-xs font-mono rounded transition-all ${
+              showCorrections
+                ? 'bg-red-500/15 border border-red-500/30 text-red-400'
+                : 'text-slate-700 border border-transparent'
+            }`}
+            title="비공식 조정장"
+          >
+            Correction
+          </button>
+          <button
+            onClick={() => setShowMarkers((v) => !v)}
+            className={`px-2.5 py-1 text-xs font-mono rounded transition-all ${
+              showMarkers
+                ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
+                : 'text-slate-700 border border-transparent'
+            }`}
+            title="시그널 매수/매도 마커"
+          >
+            Signals
+          </button>
+        </div>
 
         {/* 기간 선택 */}
-        <div className="flex gap-0.5 ml-3 flex-shrink-0 bg-[#0a0e17] rounded p-0.5">
-          {PERIOD_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              onClick={() => setPeriod(opt.id)}
-              className={`px-2.5 py-1 text-xs font-mono rounded transition-all ${
-                period === opt.id
-                  ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400'
-                  : 'text-slate-600 hover:text-slate-400 border border-transparent'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <div className="flex gap-0.5 bg-[#0a0e17] rounded p-0.5">
+            {PERIOD_OPTIONS.map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => setPeriod(opt.id)}
+                className={`px-2.5 py-1 text-xs font-mono rounded transition-all ${
+                  period === opt.id
+                    ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400'
+                    : 'text-slate-600 hover:text-slate-400 border border-transparent'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
         </div>
       </div>
 

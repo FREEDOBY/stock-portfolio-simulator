@@ -97,8 +97,8 @@ class MacroDataFetcher:
         yahoo_configs = [
             ("nasdaq_weekly", "^IXIC", "1wk", "max"),
             ("nasdaq_daily", "^IXIC", "1d", "1y"),
-            ("vix", "^VIX", "1d", "10y"),
-            ("dxy", "DX-Y.NYB", "1d", "10y"),
+            ("vix", "^VIX", "1d", "max"),
+            ("dxy", "DX-Y.NYB", "1d", "max"),
         ]
 
         for key, ticker, interval, period in yahoo_configs:
@@ -148,10 +148,11 @@ class MacroDataFetcher:
     def fetch_category(self, category: str) -> dict[str, SeriesData]:
         """카테고리별 FRED 시리즈 수집"""
         category_map = {
-            "business_cycle": ["USALOLITOAASTSAM", "IPMAN", "DGORDER", "AMTMNO", "ISRATIO", "T10Y2Y"],
-            "liquidity": ["FEDFUNDS", "DGS10", "DGS2", "M2SL", "WALCL", "RRPONTSYD"],
-            "sentiment": ["BAMLH0A0HYM2", "ICSA"],
+            "business_cycle": ["USALOLITOAASTSAM", "IPMAN", "DGORDER", "AMTMNO", "NEWORDER", "PERMIT", "ACDGNO", "ISRATIO", "T10Y2Y", "OPHNFB"],
+            "liquidity": ["FEDFUNDS", "DGS10", "DGS2", "M2SL", "WALCL", "RRPONTSYD", "BCNSDODNS", "DRTSCILM"],
+            "sentiment": ["BAMLH0A0HYM2", "ICSA", "UMCSENT"],
             "valuation": ["CPIAUCSL", "PCEPILFE", "NCBCEL", "GDP"],
+            "labor_household": ["UNRATE", "JTSJOL", "TEMPHELPS", "CIVPART", "HDTGPDUSQ163N", "DRCCLACBS", "PSAVERT", "SAHMREALTIME"],
         }
 
         series_ids = category_map.get(category, [])

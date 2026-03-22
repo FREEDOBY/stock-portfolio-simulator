@@ -13,6 +13,9 @@ const STATUS_COLORS: Record<string, string> = {
   neutral: '#3b82f6',
   fear: '#f97316',
   overvalued: '#f59e0b',
+  overheated: '#dc2626',
+  caution: '#eab308',
+  undervalued: '#06b6d4',
 };
 
 export function CategoryCard({ categoryId, summary, onClick }: Props) {

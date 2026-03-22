@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchDashboard } from '../../api/macro';
 import { VerdictBanner } from './VerdictBanner';
+import { RecessionWarningBanner } from './RecessionWarningBanner';
 import { CategoryCard } from './CategoryCard';
 import { SignalTable } from './SignalTable';
 import { SignalHistory } from './SignalHistory';
@@ -72,8 +73,13 @@ export function MacroDashboard({ onNavigateToDetail }: Props) {
 
   return (
     <div data-testid="macro-dashboard" className="max-w-6xl mx-auto space-y-4">
-      {/* 종합 판정 배너 */}
-      <VerdictBanner overall={data.overall} />
+      {/* 종합 판정 + 침체 경고 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <VerdictBanner overall={data.overall} />
+        {data.recession_warning && (
+          <RecessionWarningBanner warning={data.recession_warning} />
+        )}
+      </div>
 
       {/* 카테고리 요약 카드 5개 */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">

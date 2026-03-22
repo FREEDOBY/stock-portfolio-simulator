@@ -4,12 +4,15 @@ import { MacroLineChart } from '../charts/MacroLineChart';
 import { GaugeChart } from '../charts/GaugeChart';
 import { TabChartSection } from './TabChartSection';
 import { setElliottCount } from '../../../api/macro';
+import type { CrisisOverlay, SignalMarker } from '../charts/crisisOverlayConfig';
 
 interface Props {
   data: Record<string, unknown>;
+  crisisOverlays?: CrisisOverlay[];
+  signalMarkers?: SignalMarker[];
 }
 
-export function TechnicalTab({ data }: Props) {
+export function TechnicalTab({ data, crisisOverlays = [], signalMarkers = [] }: Props) {
   const [elliott, setElliott] = useState(0);
 
   const nasdaqWeekly = (data['nasdaq_weekly'] as Array<{ date: string; value: number }>) || [];
@@ -75,6 +78,8 @@ export function TechnicalTab({ data }: Props) {
             { dataKey: 'SMA50', color: '#f59e0b', name: '50W SMA', strokeDasharray: '4 4' },
           ]}
           height={300}
+          crisisOverlays={crisisOverlays}
+          signalMarkers={signalMarkers}
         />
       </TabChartSection>
 
@@ -83,7 +88,7 @@ export function TechnicalTab({ data }: Props) {
         title="Weekly MACD (12, 26, 9)"
         description={"MACD (Moving Average Convergence Divergence)\n• MACD선: EMA(12주) - EMA(26주)\n• 시그널선: MACD의 EMA(9주)\n• 히스토그램: MACD - 시그널\n• MACD > 시그널: 상승 모멘텀\n• 3쌍봉 하락다이버전스: 주가↑ MACD↓ → 매도 경고\n• 쌍바닥 상승다이버전스: 주가↓ MACD↑ → 매수 신호"}
       >
-        <MacroLineChart
+        <MacroLineChart crisisOverlays={crisisOverlays}
           data={macdChart}
           series={[
             { dataKey: 'Histogram', color: '#64748b', name: 'Histogram', type: 'bar' },
@@ -101,7 +106,7 @@ export function TechnicalTab({ data }: Props) {
           title="Weekly RSI (14)"
           description={"RSI (Relative Strength Index, 14주)\n• 0~100 범위, 상승/하락 강도 측정\n• 70 이상: 과매수 → 조정 가능성\n• 30 이하: 과매도 → 반등 가능성\n• 25 이하: 극과매도 → 매수 시그널\n• 다이버전스 감지 시 추세 전환 신호"}
         >
-          <MacroLineChart
+          <MacroLineChart crisisOverlays={crisisOverlays}
             data={rsiChart}
             series={[{ dataKey: 'RSI', color: '#a78bfa', name: 'RSI' }]}
             referenceLines={[

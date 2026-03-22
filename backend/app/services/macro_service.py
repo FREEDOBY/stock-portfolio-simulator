@@ -11,10 +11,11 @@ from .macro_calculator import MacroCalculator, macro_calculator
 from .signal_engine import SignalEngine, signal_engine
 from ..models.macro_schemas import SeriesDataPoint, MacroRawData
 from ..models.signal_schemas import SignalResult, SignalHistoryEntry, SignalStatus
+from .recession_warning import RecessionWarningEngine, recession_warning_engine
 
 logger = logging.getLogger(__name__)
 
-VALID_CATEGORIES = {"business_cycle", "liquidity", "sentiment", "valuation", "technical"}
+VALID_CATEGORIES = {"business_cycle", "liquidity", "sentiment", "valuation", "technical", "labor_household"}
 
 
 class MacroService:
@@ -27,6 +28,7 @@ class MacroService:
         self._elliott_count: int = 0
         self._signal_history: list[dict] = []
         self._last_signals: dict[int, SignalStatus] = {}
+        self.warning_engine: RecessionWarningEngine = recession_warning_engine
 
     def get_dashboard(self) -> dict:
         """대시보드 데이터: 종합 판정 + 카테고리 요약 + 시그널"""
@@ -47,15 +49,19 @@ class MacroService:
         # 카테고리 요약
         categories = self._build_category_summary(indicators)
 
+        # 침체 경고 시스템
+        recession_warning = self._evaluate_recession_warning(raw, indicators)
+
         return {
             "overall": {
                 "score": score,
                 "verdict": verdict.value,
                 "signals": [s.model_dump() for s in signals],
-                "history": self._signal_history[-20:],  # 최근 20건
+                "history": self._signal_history[-20:],
                 "updated_at": datetime.now().isoformat(),
             },
             "categories": categories,
+            "recession_warning": recession_warning,
         }
 
     def get_category_detail(self, category: str) -> dict:
@@ -107,13 +113,32 @@ class MacroService:
             indicators["cli_acceleration"] = pd.Series([], dtype=float)
             indicators["cli_value"] = None
 
-        # ISM PMI 트렌드
-        pmi_data = self._series_to_pd(raw.fred_series.get("IPMAN"))
-        indicators["pmi_trend"] = self.calc.trend_direction(pmi_data) if pmi_data is not None and not pmi_data.empty else None
+        # 복합 선행지표 투표로 생산/수요 트렌드 판별
+        # (ISM PMI 대용 - NAPM은 FRED에서 Discontinued)
+        dgorder = self._series_to_pd(raw.fred_series.get("DGORDER"))
+        neworder = self._series_to_pd(raw.fred_series.get("NEWORDER"))
+        acdgno = self._series_to_pd(raw.fred_series.get("ACDGNO"))
+        ipman = self._series_to_pd(raw.fred_series.get("IPMAN"))
+        permit = self._series_to_pd(raw.fred_series.get("PERMIT"))
+
+        composite_inputs = [
+            (dgorder, 2.0),    # 내구재 신규주문 (2~3개월 선행)
+            (neworder, 2.0),   # 제조업 신규주문 (1~2개월 선행)
+            (acdgno, 1.5),     # 자본재 주문 (3~6개월 선행)
+            (ipman, 1.0),      # 산업생산 (확인용, 후행)
+            (permit, 1.0),     # 건축허가 (6개월 선행)
+        ]
+        indicators["pmi_trend"] = self.calc.composite_trend(composite_inputs)
 
         # 재고/출하비율 트렌드
         isratio_data = self._series_to_pd(raw.fred_series.get("ISRATIO"))
         indicators["inventory_trend"] = self.calc.trend_direction(isratio_data) if isratio_data is not None and not isratio_data.empty else None
+
+        # CLI 기반 큰 방향 (1차 판별)
+        cli_val = indicators.get("cli_value")
+        cli_mom_series = indicators.get("cli_mom", pd.Series([], dtype=float))
+        last_mom = float(cli_mom_series.dropna().iloc[-1]) if len(cli_mom_series.dropna()) > 0 else None
+        indicators["cli_cycle_stage"] = self._determine_cli_stage(cli_val, last_mom)
 
         # 나스닥 주봉 → SMA, MACD, RSI
         nasdaq_prices = self._points_to_pd(raw.nasdaq_weekly)
@@ -296,8 +321,13 @@ class MacroService:
 
         return {
             "business_cycle": {
-                "status": "bullish" if kitchen_phase in ("Phase 1", "Phase 2") else "bearish" if kitchen_phase in ("Phase 3", "Phase 4") else "neutral",
-                "key_values": {"phase": kitchen_phase, "cli_mom": cli_mom_val},
+                "status": self._business_cycle_status(kitchen_phase, cli_mom_val),
+                "key_values": {
+                    "phase": kitchen_phase,
+                    "cli_mom": cli_mom_val,
+                    "cli_stage": indicators.get("cli_cycle_stage", "N/A"),
+                    "demand_trend": indicators.get("pmi_trend", "N/A"),
+                },
             },
             "liquidity": {
                 "status": self._liquidity_status(indicators),
@@ -307,7 +337,7 @@ class MacroService:
                 },
             },
             "technical": {
-                "status": "bullish" if (indicators.get("distance_pct") or 0) > 0 else "bearish",
+                "status": self._technical_status(indicators),
                 "key_values": {
                     "distance_pct": round(indicators["distance_pct"], 1) if indicators.get("distance_pct") is not None else None,
                     "rsi": round(indicators["rsi_value"], 1) if indicators.get("rsi_value") is not None else None,
@@ -321,7 +351,7 @@ class MacroService:
                 },
             },
             "valuation": {
-                "status": "overvalued" if (indicators.get("buffett") or 0) > 160 else "neutral",
+                "status": self._valuation_status(indicators),
                 "key_values": {
                     "buffett": round(indicators["buffett"], 1) if indicators.get("buffett") is not None else None,
                     "cpi_yoy": round(indicators["cpi_yoy"], 2) if indicators.get("cpi_yoy") is not None else None,
@@ -356,44 +386,188 @@ class MacroService:
 
         return result
 
+    def _evaluate_recession_warning(self, raw: MacroRawData, indicators: dict) -> dict:
+        """침체 경고 시스템 평가"""
+        warning_indicators = {
+            "t10y2y": self._series_to_pd(raw.fred_series.get("T10Y2Y")),
+            "drtscilm": self._series_to_pd(raw.fred_series.get("DRTSCILM")),
+            "temphelps": self._series_to_pd(raw.fred_series.get("TEMPHELPS")),
+            "drcclacbs": self._series_to_pd(raw.fred_series.get("DRCCLACBS")),
+            "cli_value": indicators.get("cli_value"),
+            "cli_mom_last": None,
+            "hy_spread": indicators.get("hy_spread"),
+            "sahm_value": None,
+            # 과열 지표
+            "buffett": indicators.get("buffett"),
+            "distance_pct": indicators.get("distance_pct"),
+            "fed_rate": indicators.get("fed_rate"),
+        }
+
+        # CLI MoM 마지막 값
+        cli_mom = indicators.get("cli_mom", pd.Series([], dtype=float))
+        if len(cli_mom.dropna()) > 0:
+            warning_indicators["cli_mom_last"] = float(cli_mom.dropna().iloc[-1])
+
+        # Sahm Rule 마지막 값
+        sahm_data = self._series_to_pd(raw.fred_series.get("SAHMREALTIME"))
+        if sahm_data is not None and not sahm_data.empty:
+            warning_indicators["sahm_value"] = float(sahm_data.iloc[-1])
+
+        return self.warning_engine.evaluate(warning_indicators)
+
+    def _determine_cli_stage(self, cli_value: Optional[float], mom: Optional[float]) -> Optional[str]:
+        """CLI 기반 경기 사이클 스테이지 (1차 큰 방향)"""
+        if cli_value is None or mom is None:
+            return None
+        if cli_value > 100 and mom > 0:
+            return "expansion"       # 확장기
+        elif cli_value > 100 and mom < 0:
+            return "peak_approach"   # 천장 접근
+        elif cli_value < 100 and mom < 0:
+            return "contraction"     # 수축기
+        elif cli_value < 100 and mom > 0:
+            return "trough_approach" # 바닥 접근/회복
+        return None
+
     # ─── 상태 판정 ───
 
+    def _business_cycle_status(self, kitchen_phase: str, cli_mom: float | None) -> str:
+        """경기사이클 상태: CLI 스테이지 + 키친 Phase + CLI MoM 3중 판정
+
+        1차: CLI 큰 방향 (확장/수축)
+        2차: 키친 Phase (세분화)
+        3차: CLI MoM (가속/감속)"""
+
+        # Phase별 기본 판정
+        if kitchen_phase == "Phase 1":
+            return "bullish"       # 수요↑ 재고↓ → 상승 초기 (최적 매수)
+        elif kitchen_phase == "Phase 2":
+            if cli_mom is not None:
+                if cli_mom < -0.1:
+                    return "caution"   # 수요↑ 재고↑ + CLI 둔화 → 천장 접근
+                if cli_mom < 0:
+                    return "neutral"   # 아직 확장이나 감속 시작
+            return "bullish"       # 수요↑ 재고↑ (확장 중기)
+        elif kitchen_phase == "Phase 3":
+            if cli_mom is not None and cli_mom > 0:
+                return "caution"   # 수요↓ 재고↑ + CLI 반등 → 일시적?
+            return "bearish"       # 수요↓ 재고↑ → 하락 초기 (매도)
+        elif kitchen_phase == "Phase 4":
+            if cli_mom is not None and cli_mom > 0:
+                return "bullish"   # 수요↓ 재고↓ + CLI 반등 → 바닥 탈출!
+            if cli_mom is not None and cli_mom > -0.1:
+                return "neutral"   # 하락 감속 → 바닥 접근
+            return "bearish"       # 하락 가속 중
+        return "neutral"
+
+    def _technical_status(self, indicators: dict) -> str:
+        """기술적 분석 상태: 200주선 거리 + RSI 복합 판정"""
+        dist = indicators.get("distance_pct")
+        rsi = indicators.get("rsi_value")
+
+        if dist is not None:
+            if dist > 35:
+                return "overheated"  # 극단적 과열 (닷컴급)
+            if dist > 25:
+                return "overvalued"  # 과열 (2007,2018,2021급)
+            if dist > 15:
+                return "caution"     # 과열 주의
+            if dist < -10:
+                return "bearish"     # 약세
+            if dist < 0:
+                return "fear"        # 200주선 하회
+
+        if rsi is not None:
+            if rsi > 75:
+                return "overheated"
+            if rsi < 25:
+                return "fear"
+
+        if dist is not None and dist > 0:
+            return "bullish"
+
+        return "neutral"
+
+    def _valuation_status(self, indicators: dict) -> str:
+        """밸류에이션 상태: 버핏지표 + CPI 복합 판정
+        역사 평균 86%. 100%+ = 고평가, 130%+ = 과열, 160%+ = 극단"""
+        buffett = indicators.get("buffett")
+        cpi = indicators.get("cpi_yoy")
+
+        if buffett is not None:
+            if buffett > 160:
+                return "overheated"  # 극도 과열 (닷컴·2021 수준)
+            if buffett > 130:
+                return "overvalued"  # 확실한 고평가 (2007 수준+)
+            if buffett > 100:
+                return "caution"     # 평균 이상, 주의 (역사 평균 86%)
+            if buffett < 70:
+                return "undervalued" # 저평가 → 매수 기회
+
+        # 인플레 높으면 추가 부담
+        if cpi is not None and cpi > 5:
+            return "overheated"
+
+        return "neutral"
+
     def _liquidity_status(self, indicators: dict) -> str:
-        """유동성 상태 판정: M2 YoY% + Fed 금리 기반"""
+        """유동성 상태 판정: Fed 금리 수준 우선 + M2 YoY% 보조
+        역사: Fed 고점 유지가 침체 전 가장 위험 (2000: 6.5%, 2006: 5.25%, 2023: 5.33%)
+        M2 음수 전환은 유동성 수축 확인"""
         m2_yoy = indicators.get("m2_yoy")
         fed_rate = indicators.get("fed_rate")
 
-        if m2_yoy is not None and fed_rate is not None:
-            # M2 증가 + 금리 인하 → 유동성 확장 (bullish)
-            if m2_yoy > 5 and fed_rate < 3:
-                return "bullish"
-            # M2 감소 + 금리 인상 → 유동성 긴축 (bearish)
-            if m2_yoy < 0 or fed_rate > 5:
-                return "bearish"
-            # M2 양수 → 약간 긍정
-            if m2_yoy > 0:
-                return "bullish"
+        # Fed 금리 수준 우선 체크
+        if fed_rate is not None:
+            if fed_rate > 5:
+                return "overheated"    # 극단 긴축 (2000, 2006-07, 2023 수준)
+            if fed_rate > 4:
+                return "bearish"       # 강한 긴축
+            if fed_rate > 3:
+                return "caution"       # 긴축 중
+
+        # M2 체크 (보조)
+        if m2_yoy is not None:
+            if m2_yoy < -2:
+                return "fear"          # M2 수축 (2023: -4.6% → 역사상 최초)
+            if m2_yoy < 0:
+                return "bearish"       # M2 감소
+            if m2_yoy > 15:
+                return "overheated"    # M2 과잉 팽창 (2020-21: 27%)
+
+        # 저금리 + M2 양수 → 유동성 확장
+        if fed_rate is not None and fed_rate < 2 and m2_yoy is not None and m2_yoy > 3:
+            return "bullish"
 
         return "neutral"
 
     def _sentiment_status(self, indicators: dict) -> str:
-        """시장 심리 상태 판정: VIX + HY 스프레드 기반"""
+        """시장 심리 상태 판정: VIX + HY 스프레드 기반
+        VIX: 13-19 정상, 20+ 스트레스, 30+ 공포, <12 과도한 낙관
+        HY: <3.5 낙관, 4+ 경계, 5+ 위험"""
         vix = indicators.get("vix_value")
         hy = indicators.get("hy_spread")
 
+        # VIX 극단값 우선 체크
         if vix is not None:
-            if vix > 35:
-                return "fear"
-            if vix > 25:
-                return "bearish"
-            if vix < 15:
-                return "bullish"
+            if vix > 30:
+                return "fear"           # 공포 (2018, 2020, 2022)
+            if vix > 20:
+                return "bearish"        # 스트레스 시작
+            if vix < 12:
+                return "overheated"     # 과도한 낙관 = 역으로 위험
 
+        # HY 스프레드
         if hy is not None:
             if hy > 5:
-                return "fear"
+                return "fear"           # 신용 위기 (역사적 레드라인 500bp)
             if hy > 4:
-                return "bearish"
+                return "bearish"        # 신용 스트레스
+            if hy < 3:
+                return "caution"        # 지나친 낙관 = 과열 가능
+
+        if vix is not None and vix < 15:
+            return "bullish"
 
         return "neutral"
 

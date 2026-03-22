@@ -34,12 +34,12 @@ class TestSignal2:
         assert result.status == SignalStatus.BUY
         assert result.score > 0
 
-    # UT-003: REQ-002 - 매도 조건: 3개월 연속 양수이며 절대값 줄어듦
-    def test_sell_signal(self, engine):
+    # UT-003: REQ-002 - 양수 연속 + 둔화 → 상승 유지 (새 로직)
+    def test_positive_decelerating(self, engine):
         mom = pd.Series([2.0, 1.5, 1.0], index=pd.date_range("2025-01", periods=3, freq="ME"))
         result = engine.signal_2_cli_mom(mom)
-        assert result.status == SignalStatus.SELL
-        assert result.score < 0
+        assert result.status == SignalStatus.BUY
+        assert result.score > 0
 
     # UT-004: REQ-002 - 대기 (조건 불충족)
     def test_wait_signal(self, engine):
@@ -102,10 +102,11 @@ class TestSignal4Buy:
         result = engine.signal_4_buy_sma200(distance_pct=20.0)
         assert result.score == 0.5
 
-    # UT-014: REQ-005 - 중립 (> 30%)
-    def test_neutral(self, engine):
+    # UT-014: REQ-005 - 과열 주의 (30~50%)
+    def test_overheated(self, engine):
         result = engine.signal_4_buy_sma200(distance_pct=35.0)
-        assert result.score == 0.0
+        assert result.score == -0.5
+        assert result.status == SignalStatus.SELL
 
 
 # ─── 시그널 4-매도: MACD 3쌍봉 다이버전스 ───

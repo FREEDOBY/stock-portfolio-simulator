@@ -173,13 +173,14 @@ class TestTrend:
 
     # UT-017: REQ-011 - PMI 트렌드 상승
     def test_trend_rising(self, calc):
-        s = pd.Series([48, 49, 50, 51, 52], index=pd.date_range("2025-01", periods=5, freq="ME"))
+        # 8개월 상승 추세 (3개월 전 MA 대비 현재 MA 상승)
+        s = pd.Series([46, 47, 48, 49, 50, 51, 52, 53], index=pd.date_range("2025-01", periods=8, freq="ME"))
         result = calc.trend_direction(s, window=3)
         assert result == "rising"
 
     # UT-018: REQ-012 - 재고/출하 트렌드 하락
     def test_trend_falling(self, calc):
-        s = pd.Series([1.4, 1.38, 1.35, 1.33, 1.30], index=pd.date_range("2025-01", periods=5, freq="ME"))
+        s = pd.Series([1.42, 1.40, 1.38, 1.36, 1.34, 1.32, 1.30, 1.28], index=pd.date_range("2025-01", periods=8, freq="ME"))
         result = calc.trend_direction(s, window=3)
         assert result == "falling"
 
@@ -188,6 +189,13 @@ class TestTrend:
         s = pd.Series([50], index=pd.date_range("2025-01", periods=1, freq="ME"))
         result = calc.trend_direction(s, window=3)
         assert result is None
+
+    # UT-020b: 미세 반등에 흔들리지 않음
+    def test_trend_noise_resistant(self, calc):
+        # 전반적 하락인데 마지막 1개월 미세 반등
+        s = pd.Series([105, 104, 103, 102, 101, 100, 99, 99.5], index=pd.date_range("2025-01", periods=8, freq="ME"))
+        result = calc.trend_direction(s, window=3)
+        assert result == "falling"  # 미세 반등에도 하락 유지
 
 
 class TestCPIPCE:

@@ -133,28 +133,69 @@ class MacroCalculator:
 
     # ─── 트렌드 판별 ───
 
+    def composite_trend(
+        self,
+        series_list: list[tuple[pd.Series, float]],
+        window: int = 3,
+    ) -> Optional[str]:
+        """복합 선행지표 가중 투표로 트렌드 판별
+
+        Args:
+            series_list: [(pd.Series, weight), ...] 각 지표와 가중치
+            window: 이동평균 윈도우
+
+        Returns: "rising", "falling", or None
+        """
+        rising_weight = 0.0
+        falling_weight = 0.0
+        total_weight = 0.0
+
+        for series, weight in series_list:
+            if series is None or series.empty:
+                continue
+            direction = self.trend_direction(series, window=window)
+            if direction == "rising":
+                rising_weight += weight
+            elif direction == "falling":
+                falling_weight += weight
+            total_weight += weight
+
+        if total_weight == 0:
+            return None
+
+        if rising_weight > falling_weight:
+            return "rising"
+        elif falling_weight > rising_weight:
+            return "falling"
+        return None
+
     def trend_direction(
         self,
         series: pd.Series,
         window: int = 3,
     ) -> Optional[str]:
-        """3개월 이동평균 방향 판별
+        """3개월 이동평균의 중기 방향 판별 (3개월 전 대비)
 
         @implements REQ-011, REQ-012
+        직전 1개월이 아닌 3개월 전 MA 대비 방향을 봄 → 미세 반등에 흔들리지 않음
         Returns: "rising", "falling", or None (데이터 부족)
         """
-        if len(series) < window + 1:
+        if len(series) < window + 4:
             return None
 
         ma = series.rolling(window=window).mean()
         valid = ma.dropna()
 
-        if len(valid) < 2:
+        if len(valid) < 4:
             return None
 
-        if valid.iloc[-1] > valid.iloc[-2]:
+        # 3개월 전 MA 대비 현재 MA 방향 (단기 노이즈 필터링)
+        current = float(valid.iloc[-1])
+        past = float(valid.iloc[-3])  # 3개월 전
+
+        if current > past:
             return "rising"
-        elif valid.iloc[-1] < valid.iloc[-2]:
+        elif current < past:
             return "falling"
         return None
 

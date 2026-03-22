@@ -1,12 +1,15 @@
 /** 탭 5: 밸류에이션 */
 import { MacroLineChart } from '../charts/MacroLineChart';
 import { TabChartSection } from './TabChartSection';
+import type { CrisisOverlay, SignalMarker } from '../charts/crisisOverlayConfig';
 
 interface Props {
   data: Record<string, { data: Array<{ date: string; value: number }> }>;
+  crisisOverlays?: CrisisOverlay[];
+  signalMarkers?: SignalMarker[];
 }
 
-export function ValuationTab({ data }: Props) {
+export function ValuationTab({ data, crisisOverlays = [] }: Props) {
   // CPI + Core PCE 합치기
   const cpiRaw = data['CPIAUCSL']?.data || [];
   const pceRaw = data['PCEPILFE']?.data || [];
@@ -21,14 +24,14 @@ export function ValuationTab({ data }: Props) {
     };
   }).filter((d) => d['CPI YoY%'] !== null);
 
-  // 버핏 지표
+  // 버핏 지표 (NCBCEL: 백만달러, GDP: 십억달러 → NCBCEL/1000으로 단위 통일)
   const wilshireRaw = data['NCBCEL']?.data || [];
   const gdpRaw = data['GDP']?.data || [];
   const buffettData = wilshireRaw.map((d, i) => {
     const gdpVal = gdpRaw[i]?.value;
     return {
       date: d.date.substring(0, 7),
-      'Buffett%': gdpVal && gdpVal > 0 ? (d.value / gdpVal) * 100 : null,
+      'Buffett%': gdpVal && gdpVal > 0 ? ((d.value / 1000) / gdpVal) * 100 : null,
     };
   }).filter((d) => d['Buffett%'] !== null);
 
@@ -39,7 +42,7 @@ export function ValuationTab({ data }: Props) {
         title="CPI YoY% + Core PCE YoY%"
         description={"CPI (소비자물가지수): 전체 소비자 물가 변동\nCore PCE (개인소비지출): 연준이 선호하는 인플레 지표 (식품·에너지 제외)\n• 2% 이하: 인플레 안정 → 금리 인하 가능\n• 2~3%: 적정 범위\n• 3% 이상: 인플레 압력 → 금리 인상 압력\n• CPI와 PCE 괴리 확대 시 → 연준 정책 혼란"}
       >
-        <MacroLineChart
+        <MacroLineChart crisisOverlays={crisisOverlays}
           data={inflationData}
           series={[
             { dataKey: 'CPI YoY%', color: '#ef4444', name: 'CPI YoY%' },
@@ -56,7 +59,7 @@ export function ValuationTab({ data }: Props) {
         title="Buffett Indicator (Market Cap / GDP %)"
         description={"버핏지표: 전체 주식 시가총액 ÷ GDP\n• 100% 이하: 저평가 → 매수 적기\n• 100~130%: 적정 가치\n• 130~160%: 고평가 → 주의\n• 160% 이상: 극심한 고평가 → 버블 경고\n• 워런 버핏이 '단일 최고의 밸류에이션 지표'로 언급"}
       >
-        <MacroLineChart
+        <MacroLineChart crisisOverlays={crisisOverlays}
           data={buffettData}
           series={[{ dataKey: 'Buffett%', color: '#06b6d4', name: 'Buffett Indicator' }]}
           referenceLines={[

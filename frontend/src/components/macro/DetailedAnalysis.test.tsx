@@ -5,6 +5,7 @@ import * as macroApi from '../../api/macro';
 
 vi.mock('../../api/macro', () => ({
   fetchCategoryDetail: vi.fn(),
+  fetchSignalHistory: vi.fn().mockResolvedValue([]),
 }));
 
 const mockCategoryData = {

@@ -2,14 +2,22 @@
 import { MacroLineChart } from '../charts/MacroLineChart';
 import { CycleDiagram } from '../charts/CycleDiagram';
 import { TabChartSection } from './TabChartSection';
+import type { CrisisOverlay, SignalMarker } from '../charts/crisisOverlayConfig';
 
 interface Props {
   data: Record<string, { data: Array<{ date: string; value: number }> }>;
+  crisisOverlays?: CrisisOverlay[];
+  signalMarkers?: SignalMarker[];
 }
 
-export function BusinessCycleTab({ data }: Props) {
-  const toChartData = (seriesId: string) =>
-    data[seriesId]?.data?.map((d) => ({ date: d.date.substring(0, 7), [seriesId]: d.value })) || [];
+export function BusinessCycleTab({ data, crisisOverlays = [], signalMarkers = [] }: Props) {
+  const toChartData = (seriesId: string) => {
+    const raw = data[seriesId]?.data || [];
+    // 일별 데이터 → 월별 마지막 값만 (중복 제거)
+    const byMonth = new Map<string, number>();
+    raw.forEach((d) => byMonth.set(d.date.substring(0, 7), d.value));
+    return Array.from(byMonth, ([date, value]) => ({ date, [seriesId]: value }));
+  };
 
   // CLI + MoM% (듀얼 Y축)
   const cliData = data['USALOLITOAASTSAM']?.data || [];
@@ -28,13 +36,37 @@ export function BusinessCycleTab({ data }: Props) {
     '재고': data['AMTMNO']?.data?.[i]?.value,
   }));
 
-  // 키친사이클 Phase 추론
+  // 키친사이클 Phase 추론 (복합 선행지표 투표 + ISRATIO)
   let kitchenPhase = 0;
-  if (ismData.length >= 3) {
-    const last3Pmi = ismData.slice(-3).map((d) => d.PMI || 0);
-    const last3Inv = (data['ISRATIO']?.data || []).slice(-3).map((d) => d.value);
-    const pmiRising = last3Pmi[2] > last3Pmi[0];
-    const invRising = last3Inv.length >= 3 && last3Inv[2] > last3Inv[0];
+
+  // 복합 트렌드: 여러 선행지표의 3개월MA 방향을 가중 투표
+  const calcTrend = (seriesData: Array<{ date: string; value: number }> | undefined): number => {
+    if (!seriesData || seriesData.length < 7) return 0;
+    const recent = seriesData.slice(-7);
+    const maCurrent = (recent[6].value + recent[5].value + recent[4].value) / 3;
+    const maPast = (recent[3].value + recent[2].value + recent[1].value) / 3;
+    return maCurrent > maPast ? 1 : -1;
+  };
+
+  const demandVotes = [
+    { trend: calcTrend(data['DGORDER']?.data), weight: 2.0 },   // 내구재
+    { trend: calcTrend(data['NEWORDER']?.data), weight: 2.0 },   // 제조업 주문
+    { trend: calcTrend(data['ACDGNO']?.data), weight: 1.5 },     // 자본재
+    { trend: calcTrend(data['IPMAN']?.data), weight: 1.0 },      // 산업생산
+    { trend: calcTrend(data['PERMIT']?.data), weight: 1.0 },     // 건축허가
+  ];
+  const risingWeight = demandVotes.filter(v => v.trend > 0).reduce((s, v) => s + v.weight, 0);
+  const fallingWeight = demandVotes.filter(v => v.trend < 0).reduce((s, v) => s + v.weight, 0);
+  const pmiRising = risingWeight > fallingWeight;
+
+  // 재고 트렌드
+  const isratioData = data['ISRATIO']?.data || [];
+  let invRising = false;
+  if (isratioData.length >= 7) {
+    invRising = calcTrend(isratioData) > 0;
+  }
+
+  {
 
     if (pmiRising && !invRising) kitchenPhase = 1;
     else if (pmiRising && invRising) kitchenPhase = 2;
@@ -50,7 +82,7 @@ export function BusinessCycleTab({ data }: Props) {
           title="OECD CLI (미국) + MoM%"
           description={"OECD 경기선행지수 (Composite Leading Indicator)\n• 100 이상: 경기 확장기\n• 100 이하: 경기 수축기\n• MoM%: 월간 변화율로 방향성 판단\n• MoM% 가속도(변화의 변화)로 전환점 포착"}
         >
-          <MacroLineChart
+          <MacroLineChart crisisOverlays={crisisOverlays}
             data={cliWithMom}
             series={[
               { dataKey: 'CLI', color: '#06b6d4', name: 'CLI', yAxisId: 'left' },
@@ -74,18 +106,19 @@ export function BusinessCycleTab({ data }: Props) {
         </TabChartSection>
       </div>
 
-      {/* 산업생산지수 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* 산업생산지수 - 키친사이클 핵심 입력 */}
       <TabChartSection
-        title="산업생산지수 (IPMAN, 2017=100)"
-        description={"산업생산 제조업지수 (Industrial Production: Manufacturing)\n• 2017년=100 기준 지수\n• 100 이상: 2017년 대비 생산 증가\n• 3개월 이동평균 방향으로 PMI 트렌드 판별\n• 상승 추세 → 경기 확장, 하락 추세 → 경기 수축"}
+        title="산업생산지수 (IPMAN, 2012=100)"
+        description={"산업생산 제조업지수 (Industrial Production: Manufacturing)\n• 2012년=100 기준 지수\n• 키친사이클 Phase 판별의 핵심 입력\n• 3개월 이동평균의 중기 방향(3개월 전 대비)으로 트렌드 판별\n• 상승 추세 → 경기 확장, 하락 추세 → 경기 수축\n• 급락: 경기침체 동행 지표"}
       >
-        <MacroLineChart
+        <MacroLineChart crisisOverlays={crisisOverlays}
           data={ismData}
           series={[
             { dataKey: 'PMI', color: '#10b981', name: '산업생산지수' },
           ]}
-          yDomain={[85, 115]}
-          referenceLines={[{ y: 100, color: '#475569', label: '100' }]}
+          yDomain={[70, 115]}
+          referenceLines={[{ y: 100, color: '#475569', label: '100 (2012)' }]}
         />
       </TabChartSection>
 
@@ -94,7 +127,7 @@ export function BusinessCycleTab({ data }: Props) {
         title="내구재 신규주문 + 제조업 신규주문"
         description={"내구재 신규주문 (DGORDER): 3년 이상 사용 가능한 제품 주문\n• 설비투자 선행지표, 기업 신뢰도 반영\n\n제조업 신규주문 (AMTMNO): 전체 제조업 주문\n• 경기 전반의 수요 강도 측정\n• 두 지표 동반 상승 → 경기 확장 신호"}
       >
-        <MacroLineChart
+        <MacroLineChart crisisOverlays={crisisOverlays}
           data={ismData}
           series={[
             { dataKey: '신규주문', color: '#3b82f6', name: '내구재 신규주문', yAxisId: 'left' },
@@ -104,16 +137,60 @@ export function BusinessCycleTab({ data }: Props) {
           rightYAxisFormatter={(v) => `${(v / 1000).toFixed(0)}B`}
         />
       </TabChartSection>
+      </div>
+
+      {/* 선행 지표 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* 제조업 신규주문 (Census) */}
+        <TabChartSection
+          title="New Orders: Nondefense Capital Goods ex-Aircraft"
+          description={"핵심 자본재 신규주문 (NEWORDER)\n• 방산·항공기 제외한 기업 설비투자 주문\n• ISM PMI 신규주문의 실제 데이터 대용\n• 키친사이클 수요 트렌드 판별에 사용\n• 1~2개월 선행\n• 감소 추세 → 기업 투자 축소"}
+        >
+          <MacroLineChart crisisOverlays={crisisOverlays}
+            data={toChartData('NEWORDER')}
+            series={[{ dataKey: 'NEWORDER', color: '#3b82f6', name: 'New Orders ($B)' }]}
+            yAxisFormatter={(v) => `${(v / 1000).toFixed(0)}B`}
+            yDomain={[50000, 85000]}
+          />
+        </TabChartSection>
+
+        {/* 건축허가건수 */}
+        <TabChartSection
+          title="Building Permits"
+          description={"건축허가건수 (PERMIT)\n• 주택경기 선행지표 (6개월 선행)\n• 금리 인상 시 급감 → 경기 둔화 선행\n• 2006년 급감 → 2008 금융위기\n• 2022년 급감 → 주택시장 냉각\n• 주택은 GDP의 ~15% 차지"}
+        >
+          <MacroLineChart crisisOverlays={crisisOverlays}
+            data={toChartData('PERMIT')}
+            series={[{ dataKey: 'PERMIT', color: '#f97316', name: 'Permits (K)' }]}
+            yAxisFormatter={(v) => `${v.toFixed(0)}K`}
+            yDomain={[900, 2100]}
+          />
+        </TabChartSection>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* 소비자 내구재 신규주문 */}
+        <TabChartSection
+          title="Consumer Durable Goods Orders"
+          description={"소비자 내구재 신규주문 (ACDGNO)\n• 자동차, 가전 등 소비자 내구재\n• 소비 심리와 직결\n• 3~6개월 선행\n• 감소 → 소비자 지출 위축 신호\n• AI 관련 소비재 수요 트렌드"}
+        >
+          <MacroLineChart crisisOverlays={crisisOverlays}
+            data={toChartData('ACDGNO')}
+            series={[{ dataKey: 'ACDGNO', color: '#a78bfa', name: 'Consumer Durables ($B)' }]}
+            yAxisFormatter={(v) => `${(v / 1000).toFixed(0)}B`}
+            yDomain={[20000, 55000]}
+          />
+        </TabChartSection>
+
         {/* 재고/출하 비율 */}
         <TabChartSection
           title="Inventory/Sales Ratio"
           description={"총사업 재고/출하 비율 (ISRATIO)\n• 재고 ÷ 출하 = 재고가 몇 개월치인지\n• 상승: 재고 쌓임 (수요 < 공급) → 경기 둔화\n• 하락: 재고 소진 (수요 > 공급) → 경기 회복\n• 3개월 이동평균 방향으로 트렌드 판별\n• 키친사이클 Phase 판별의 핵심 입력"}
         >
-          <MacroLineChart
+          <MacroLineChart crisisOverlays={crisisOverlays}
             data={toChartData('ISRATIO')}
             series={[{ dataKey: 'ISRATIO', color: '#a78bfa', name: 'IS Ratio', type: 'area' }]}
+            yDomain={[1.2, 1.55]}
           />
         </TabChartSection>
 
@@ -122,7 +199,7 @@ export function BusinessCycleTab({ data }: Props) {
           title="10Y-2Y Treasury Spread"
           description={"장단기 금리차 (10년물 - 2년물)\n• 양수: 정상 수익률 곡선 (경기 확장 기대)\n• 음수 (역전): 경기 침체 선행 신호\n• 역전 후 다시 양수 전환 시 → 침체 임박\n• 역사적으로 모든 미국 경기침체 전 역전 발생"}
         >
-          <MacroLineChart
+          <MacroLineChart crisisOverlays={crisisOverlays}
             data={toChartData('T10Y2Y')}
             series={[{ dataKey: 'T10Y2Y', color: '#ec4899', name: '10Y-2Y' }]}
             referenceLines={[{ y: 0, color: '#ef4444', label: '0%' }]}
@@ -130,6 +207,18 @@ export function BusinessCycleTab({ data }: Props) {
           />
         </TabChartSection>
       </div>
+
+      {/* 노동생산성 */}
+      <TabChartSection
+        title="Labor Productivity (OPHNFB)"
+        description={"비농업 시간당 산출 (노동생산성)\n• AI/기술 혁신의 생산성 향상 직접 측정\n• 상승: 같은 노동으로 더 많이 생산 → 경제 성장\n• 정체/하락: 생산성 둔화 → 임금 상승 압력\n• AI 시대: 급격한 상승 시 고용 감소 동반 가능"}
+      >
+        <MacroLineChart crisisOverlays={crisisOverlays}
+          data={toChartData('OPHNFB')}
+          series={[{ dataKey: 'OPHNFB', color: '#06b6d4', name: 'Productivity', type: 'area' }]}
+          yDomain={[95, 125]}
+        />
+      </TabChartSection>
     </div>
   );
 }
