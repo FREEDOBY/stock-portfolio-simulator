@@ -57,7 +57,7 @@ describe('Integration: Layout + Sidebar Navigation', () => {
 
     // 접힘 → 펼침
     fireEvent.click(toggleBtns[0]);
-    expect(sidebars[0].className).toContain('w-[200px]');
+    expect(sidebars[0].className).toContain('w-[260px]');
     expect(window.localStorage.setItem).toHaveBeenCalledWith('sidebar-collapsed', 'false');
   });
 

@@ -51,7 +51,7 @@ describe('Layout', () => {
     const sidebars = screen.getAllByTestId('sidebar');
 
     // 초기 상태: 펼침 (데스크톱 사이드바)
-    expect(sidebars[0].className).toContain('w-[200px]');
+    expect(sidebars[0].className).toContain('w-[260px]');
 
     // 토글: 접힘
     fireEvent.click(toggleBtns[0]);

@@ -107,7 +107,7 @@ export function TechnicalTab({ data }: Props) {
         <div className="space-y-3">
           <GaugeChart value={distancePct} label="200W SMA Distance" min={-30} max={50} />
           <div className="bg-[#0d1117] border border-slate-700/30 rounded p-4">
-            <p className="text-xs text-slate-500 font-mono uppercase mb-2">Drawdown from 52W High</p>
+            <p className="text-sm text-slate-500 font-mono uppercase mb-2">Drawdown from 52W High</p>
             <p className={`text-3xl font-bold font-mono text-center ${drawdownPct < -15 ? 'text-red-400' : 'text-slate-300'}`}>
               {drawdownPct.toFixed(1)}%
             </p>
@@ -116,10 +116,10 @@ export function TechnicalTab({ data }: Props) {
 
         {/* 엘리엇 수동 입력 */}
         <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
-          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono mb-3">
+          <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider font-mono mb-3">
             Elliott Wave (Manual)
           </h4>
-          <p className="text-xs text-slate-600 font-mono mb-3">
+          <p className="text-sm text-slate-600 font-mono mb-3">
             엘리엇 5파동 연속 출현 횟수
           </p>
           <div className="flex gap-2">

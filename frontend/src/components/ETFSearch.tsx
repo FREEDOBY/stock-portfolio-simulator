@@ -115,7 +115,7 @@ export function ETFSearch({ onAdd, existingSymbols }: Props) {
         <button
           onClick={handleDirectAdd}
           disabled={!query.trim() || isValidating}
-          className="flex-shrink-0 px-2.5 py-2 bg-cyan-600/20 border border-cyan-500/50 text-cyan-400 rounded text-xs font-mono hover:bg-cyan-600/30 disabled:bg-slate-800 disabled:text-slate-600 disabled:border-slate-700 disabled:cursor-not-allowed transition-colors"
+          className="flex-shrink-0 px-3 py-2 bg-cyan-600/20 border border-cyan-500/50 text-cyan-400 rounded text-sm font-mono hover:bg-cyan-600/30 disabled:bg-slate-800 disabled:text-slate-600 disabled:border-slate-700 disabled:cursor-not-allowed transition-colors"
         >
           {isValidating ? '...' : 'ADD'}
         </button>

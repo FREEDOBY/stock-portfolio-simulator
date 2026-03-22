@@ -122,12 +122,12 @@ export function Layout() {
               <div className="md:hidden w-8"></div>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-                <h1 className="text-sm font-bold text-slate-300 uppercase tracking-wider font-mono">
+                <h1 className="text-base font-bold text-slate-300 uppercase tracking-wider font-mono">
                   {activeLabel}
                 </h1>
               </div>
             </div>
-            <div className="flex items-center gap-4 text-xs font-mono text-slate-600">
+            <div className="flex items-center gap-4 text-sm font-mono text-slate-600">
               <span>SESSION: <span className="text-amber-400">ACTIVE</span></span>
               <span className="hidden sm:inline">DATA: <span className="text-cyan-400">LIVE</span></span>
             </div>

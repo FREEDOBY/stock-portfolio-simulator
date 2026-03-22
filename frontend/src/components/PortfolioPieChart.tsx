@@ -73,14 +73,14 @@ export function PortfolioPieChart({ portfolio }: Props) {
                 border: '1px solid rgba(100, 116, 139, 0.3)',
                 borderRadius: '4px',
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: '11px',
+                fontSize: '13px',
                 color: '#e2e8f0',
               }}
             />
             <Legend
               wrapperStyle={{
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: '11px',
+                fontSize: '13px',
               }}
               formatter={(value) => <span style={{ color: '#94a3b8' }}>{value}</span>}
             />

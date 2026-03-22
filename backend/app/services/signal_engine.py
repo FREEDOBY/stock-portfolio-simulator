@@ -43,8 +43,21 @@ class SignalEngine:
 
     # ─── 시그널 2: OECD CLI MoM% ───
 
-    def signal_2_cli_mom(self, mom_series: pd.Series) -> SignalResult:
-        """@implements REQ-002 - CLI MoM% 3개월 연속 패턴"""
+    def signal_2_cli_mom(
+        self,
+        mom_series: pd.Series,
+        accel_series: Optional[pd.Series] = None,
+    ) -> SignalResult:
+        """@implements REQ-002 - CLI MoM% + 가속도 다단계 판정
+
+        6상태 분류:
+        - 양수 + 가속(accel>0) = 상승 가속 → BUY
+        - 양수 + 감속(accel<0, 1~2개월) = 상승 감속 → 주의 (매수 유지)
+        - 양수 + 감속(accel<0, 3개월+) = 천장 접근 → SELL
+        - 음수 전환 = 하락 시작 → SELL
+        - 음수 + 절대값 감소 = 바닥 탈출 → BUY
+        - 음수 + 절대값 증가 = 하락 가속 → SELL
+        """
         if len(mom_series) < 3:
             return SignalResult(
                 signal_id=2, name="OECD CLI", score=0.0,
@@ -52,7 +65,8 @@ class SignalEngine:
                 reason="데이터 부족",
             )
 
-        last3 = mom_series.dropna().tail(3)
+        last6 = mom_series.dropna().tail(6)
+        last3 = last6.tail(3)
         if len(last3) < 3:
             return SignalResult(
                 signal_id=2, name="OECD CLI", score=0.0,
@@ -61,31 +75,85 @@ class SignalEngine:
             )
 
         vals = last3.values
+        last_val = vals[-1]
 
-        # 매수: 3개월 연속 음수이며 절대값 줄어듦
+        # 가속도 분석
+        accel_val = None
+        accel_neg_months = 0
+        if accel_series is not None and len(accel_series.dropna()) >= 3:
+            accel_tail = accel_series.dropna().tail(6)
+            accel_val = float(accel_tail.iloc[-1])
+            # 가속도 음수가 몇 개월 연속인지
+            for v in reversed(accel_tail.values):
+                if v < 0:
+                    accel_neg_months += 1
+                else:
+                    break
+
+        # 양수→음수 전환 (하락 시작) → 강한 매도
+        if vals[-1] < 0 and vals[-2] > 0:
+            return SignalResult(
+                signal_id=2, name="OECD CLI", score=-1.5,
+                weight=self.WEIGHTS[2], status=SignalStatus.SELL,
+                reason=f"하락 전환: MoM% 음수 전환 ({last_val:.2f}%)",
+            )
+
+        # 3개월 연속 음수
         if all(v < 0 for v in vals):
             abs_vals = [abs(v) for v in vals]
-            if abs_vals[0] > abs_vals[1] > abs_vals[2]:
+            # 바닥 탈출: 절대값 감소
+            if abs_vals[-1] < abs_vals[-2]:
                 return SignalResult(
                     signal_id=2, name="OECD CLI", score=1.5,
                     weight=self.WEIGHTS[2], status=SignalStatus.BUY,
-                    reason=f"MoM% 3개월 연속 음수, 절대값 감소 ({vals[-1]:.2f}%)",
+                    reason=f"바닥 탈출: MoM% 절대값 감소 ({last_val:.2f}%)",
                 )
+            # 하락 지속
+            return SignalResult(
+                signal_id=2, name="OECD CLI", score=-1.0,
+                weight=self.WEIGHTS[2], status=SignalStatus.SELL,
+                reason=f"하락 지속: MoM% 3개월 음수 ({last_val:.2f}%)",
+            )
 
-        # 매도: 3개월 연속 양수이며 절대값 줄어듦
+        # 3개월 연속 양수
         if all(v > 0 for v in vals):
-            abs_vals = [abs(v) for v in vals]
-            if abs_vals[0] > abs_vals[1] > abs_vals[2]:
+            # 가속 상승
+            if vals[0] < vals[1] < vals[2]:
                 return SignalResult(
-                    signal_id=2, name="OECD CLI", score=-1.5,
-                    weight=self.WEIGHTS[2], status=SignalStatus.SELL,
-                    reason=f"MoM% 3개월 연속 양수, 절대값 감소 ({vals[-1]:.2f}%)",
+                    signal_id=2, name="OECD CLI", score=1.0,
+                    weight=self.WEIGHTS[2], status=SignalStatus.BUY,
+                    reason=f"상승 가속: MoM% 연속 상승 ({last_val:.2f}%)",
                 )
 
+            # 감속 판단: 가속도 기반
+            if vals[-1] < vals[-2]:
+                # 가속도 음수 3개월 이상 → 천장 접근 경고
+                if accel_neg_months >= 3:
+                    return SignalResult(
+                        signal_id=2, name="OECD CLI", score=-0.5,
+                        weight=self.WEIGHTS[2], status=SignalStatus.SELL,
+                        reason=f"천장 접근: 가속도 {accel_neg_months}개월 연속 음수 (MoM%: {last_val:.2f}%)",
+                    )
+                # 가속도 음수 1~2개월 → 상승 유지 (경고만)
+                accel_info = f", 가속도 {accel_neg_months}개월 감속" if accel_neg_months > 0 else ""
+                return SignalResult(
+                    signal_id=2, name="OECD CLI", score=0.5,
+                    weight=self.WEIGHTS[2], status=SignalStatus.BUY,
+                    reason=f"상승 유지 (소폭 둔화): MoM% {last_val:.2f}%{accel_info}",
+                )
+
+            # 양수 유지
+            return SignalResult(
+                signal_id=2, name="OECD CLI", score=0.5,
+                weight=self.WEIGHTS[2], status=SignalStatus.BUY,
+                reason=f"상승 유지: MoM% 3개월 양수 ({last_val:.2f}%)",
+            )
+
+        # 혼조 (양수/음수 혼재)
         return SignalResult(
             signal_id=2, name="OECD CLI", score=0.0,
             weight=self.WEIGHTS[2], status=SignalStatus.WAIT,
-            reason=f"조건 불충족 (MoM%: {vals[-1]:.2f}%)",
+            reason=f"혼조: MoM% 방향 전환 중 ({last_val:.2f}%)",
         )
 
     # ─── 시그널 3: 키친사이클 ───
@@ -162,15 +230,20 @@ class SignalEngine:
             )
 
         if distance_pct < 0:
-            score, reason = 2.0, f"200주선 하회 ({distance_pct:.1f}%) → 적극 매수 구간"
+            score, status = 2.0, SignalStatus.BUY
+            reason = f"200주선 하회 ({distance_pct:.1f}%) → 적극 매수"
         elif distance_pct <= 10:
-            score, reason = 1.0, f"200주선 근접 ({distance_pct:.1f}%) → 매수 준비"
+            score, status = 1.0, SignalStatus.BUY
+            reason = f"200주선 근접 ({distance_pct:.1f}%) → 매수 준비"
         elif distance_pct <= 30:
-            score, reason = 0.5, f"200주선 접근 ({distance_pct:.1f}%) → 관심"
+            score, status = 0.5, SignalStatus.BUY
+            reason = f"200주선 접근 ({distance_pct:.1f}%) → 관심"
+        elif distance_pct <= 50:
+            score, status = -0.5, SignalStatus.SELL
+            reason = f"200주선 상회 ({distance_pct:.1f}%) → 과열 주의"
         else:
-            score, reason = 0.0, f"200주선 상회 ({distance_pct:.1f}%) → 중립"
-
-        status = SignalStatus.BUY if score > 0 else SignalStatus.WAIT
+            score, status = -1.0, SignalStatus.SELL
+            reason = f"200주선 대폭 상회 ({distance_pct:.1f}%) → 과열"
 
         return SignalResult(
             signal_id=4, name="200주선 접근", score=score,

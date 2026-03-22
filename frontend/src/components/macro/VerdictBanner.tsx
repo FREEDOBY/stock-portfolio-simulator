@@ -19,7 +19,7 @@ export function VerdictBanner({ overall }: Props) {
           className="w-3 h-3 rounded-full animate-pulse"
           style={{ backgroundColor: config.color }}
         />
-        <span className="text-xs font-mono text-slate-500 uppercase tracking-wider">
+        <span className="text-sm font-mono text-slate-500 uppercase tracking-wider">
           Overall Verdict
         </span>
       </div>
@@ -51,7 +51,7 @@ export function VerdictBanner({ overall }: Props) {
       </div>
 
       {/* 업데이트 시간 */}
-      <p className="text-xs font-mono text-slate-600">
+      <p className="text-sm font-mono text-slate-600">
         Last Updated: {new Date(overall.updated_at).toLocaleString()}
       </p>
     </div>

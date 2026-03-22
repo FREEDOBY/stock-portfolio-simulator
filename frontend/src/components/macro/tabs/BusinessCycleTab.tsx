@@ -20,12 +20,12 @@ export function BusinessCycleTab({ data }: Props) {
   }));
 
   // PMI + 신규주문 + 재고 합치기
-  const pmiDates = data['NAPM']?.data?.map((d) => d.date.substring(0, 7)) || [];
+  const pmiDates = data['IPMAN']?.data?.map((d) => d.date.substring(0, 7)) || [];
   const ismData = pmiDates.map((date, i) => ({
     date,
-    PMI: data['NAPM']?.data?.[i]?.value,
-    '신규주문': data['NAPMNOI']?.data?.[i]?.value,
-    '재고': data['NAPMII']?.data?.[i]?.value,
+    PMI: data['IPMAN']?.data?.[i]?.value,
+    '신규주문': data['DGORDER']?.data?.[i]?.value,
+    '재고': data['AMTMNO']?.data?.[i]?.value,
   }));
 
   // 키친사이클 Phase 추론 (PMI 트렌드 + 재고 트렌드)

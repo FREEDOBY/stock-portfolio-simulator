@@ -31,14 +31,14 @@ export function StatusBar({ collapsed }: StatusBarProps) {
 
   return (
     <div className="px-4 py-3 border-t border-slate-700/30 space-y-1">
-      <div className="flex items-center gap-2 text-xs font-mono text-slate-600">
+      <div className="flex items-center gap-2 text-sm font-mono text-slate-600">
         <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
         <span className="text-emerald-400/70">ONLINE</span>
       </div>
-      <div className="text-xs font-mono text-slate-700">
+      <div className="text-sm font-mono text-slate-700">
         {dateStr}
       </div>
-      <div className="text-xs font-mono text-slate-700">
+      <div className="text-sm font-mono text-slate-700">
         v1.0.0
       </div>
     </div>

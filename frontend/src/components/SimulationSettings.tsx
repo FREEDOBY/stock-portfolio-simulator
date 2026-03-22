@@ -22,7 +22,7 @@ interface Props {
 }
 
 const inputClass = "w-full px-3 py-2 bg-[#0a0e17] border border-slate-600/50 rounded text-slate-200 text-sm font-mono focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/30";
-const labelClass = "block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wider font-mono";
+const labelClass = "block text-sm font-medium text-slate-500 mb-1 uppercase tracking-wider font-mono";
 
 export function SimulationSettings({
   settings,
@@ -81,7 +81,7 @@ export function SimulationSettings({
                     investmentType: opt.value as InvestmentType,
                   })
                 }
-                className={`flex-1 px-2 py-1.5 text-xs font-mono rounded transition-all ${
+                className={`flex-1 px-2 py-1.5 text-sm font-mono rounded transition-all ${
                   settings.investmentType === opt.value
                     ? 'bg-cyan-500/20 border border-cyan-500/50 text-cyan-400'
                     : 'bg-[#0a0e17] border border-slate-700/50 text-slate-500 hover:border-slate-600'

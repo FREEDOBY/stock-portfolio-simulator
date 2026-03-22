@@ -68,7 +68,7 @@ export function SavedPortfolioList({ currentPortfolio, onLoad }: Props) {
         <button
           onClick={() => setShowSaveModal(true)}
           disabled={currentPortfolio.length === 0}
-          className={`px-3 py-1 text-xs font-mono rounded transition-colors ${
+          className={`px-3 py-1 text-sm font-mono rounded transition-colors ${
             currentPortfolio.length > 0
               ? 'bg-cyan-500/20 border border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/30'
               : 'bg-slate-800 border border-slate-700 text-slate-600 cursor-not-allowed'
@@ -130,7 +130,7 @@ export function SavedPortfolioList({ currentPortfolio, onLoad }: Props) {
               className="flex items-center justify-between p-2.5 bg-[#0d1117] border border-slate-700/30 rounded hover:border-slate-600/50 transition-colors"
             >
               <div className="flex-1 min-w-0">
-                <p className="font-mono text-sm text-slate-300 truncate">{saved.name}</p>
+                <p className="font-mono text-sm text-slate-300 truncate" title={saved.name}>{saved.name}</p>
                 <p className="text-xs text-slate-600 font-mono">
                   {saved.portfolio.map((p) => p.symbol).join(' | ')}
                 </p>
@@ -138,13 +138,13 @@ export function SavedPortfolioList({ currentPortfolio, onLoad }: Props) {
               <div className="flex gap-1.5 ml-2">
                 <button
                   onClick={() => handleLoad(saved.portfolio)}
-                  className="px-2 py-1 text-xs bg-cyan-500/10 text-cyan-400 rounded hover:bg-cyan-500/20 font-mono border border-cyan-500/30 transition-colors"
+                  className="px-2 py-1 text-sm bg-cyan-500/10 text-cyan-400 rounded hover:bg-cyan-500/20 font-mono border border-cyan-500/30 transition-colors"
                 >
                   LOAD
                 </button>
                 <button
                   onClick={() => handleDelete(saved.id)}
-                  className="px-2 py-1 text-xs bg-red-500/10 text-red-400 rounded hover:bg-red-500/20 font-mono border border-red-500/30 transition-colors"
+                  className="px-2 py-1 text-sm bg-red-500/10 text-red-400 rounded hover:bg-red-500/20 font-mono border border-red-500/30 transition-colors"
                 >
                   DEL
                 </button>

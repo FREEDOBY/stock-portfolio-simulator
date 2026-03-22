@@ -15,7 +15,7 @@ export function SignalHistory({ history }: Props) {
             Signal History
           </h3>
         </div>
-        <p className="text-xs text-slate-600 font-mono text-center py-4">No signal changes recorded</p>
+        <p className="text-sm text-slate-600 font-mono text-center py-4">No signal changes recorded</p>
       </div>
     );
   }
@@ -35,7 +35,7 @@ export function SignalHistory({ history }: Props) {
           return (
             <div
               key={idx}
-              className="flex items-center gap-3 px-3 py-2 bg-[#0d1117] border border-slate-700/30 rounded text-xs font-mono"
+              className="flex items-center gap-3 px-3 py-2 bg-[#0d1117] border border-slate-700/30 rounded text-sm font-mono"
             >
               <span className="text-slate-600 flex-shrink-0">{entry.date}</span>
               <span className="text-slate-500">S{entry.signal_id}</span>

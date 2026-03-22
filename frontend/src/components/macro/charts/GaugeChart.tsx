@@ -40,7 +40,7 @@ export function GaugeChart({
 
   return (
     <div className="bg-[#0d1117] border border-slate-700/30 rounded p-4">
-      <p className="text-xs text-slate-500 font-mono uppercase mb-3">{label}</p>
+      <p className="text-sm text-slate-500 font-mono uppercase mb-3">{label}</p>
 
       {/* 값 */}
       <div className="text-center mb-3">
@@ -63,8 +63,8 @@ export function GaugeChart({
 
       {/* 라벨 */}
       <div className="flex justify-between mt-1">
-        <span className="text-xs text-slate-700 font-mono">{min}</span>
-        <span className="text-xs text-slate-700 font-mono">{max}</span>
+        <span className="text-sm text-slate-700 font-mono">{min}</span>
+        <span className="text-sm text-slate-700 font-mono">{max}</span>
       </div>
     </div>
   );

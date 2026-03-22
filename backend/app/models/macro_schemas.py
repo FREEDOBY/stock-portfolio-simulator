@@ -44,9 +44,9 @@ class MacroRawData(BaseModel):
 # FRED 시리즈 설정
 FRED_SERIES_CONFIG = [
     {"id": "USALOLITOAASTSAM", "name": "OECD CLI (미국)", "months": 24},
-    {"id": "NAPM", "name": "ISM 제조업 PMI", "months": 24},
-    {"id": "NAPMNOI", "name": "ISM 신규주문지수", "months": 24},
-    {"id": "NAPMII", "name": "ISM 재고지수", "months": 24},
+    {"id": "IPMAN", "name": "산업생산 제조업지수", "months": 24},
+    {"id": "DGORDER", "name": "내구재 신규주문", "months": 24},
+    {"id": "AMTMNO", "name": "제조업 신규주문", "months": 24},
     {"id": "ISRATIO", "name": "총사업 재고/출하 비율", "months": 60},
     {"id": "T10Y2Y", "name": "10Y-2Y 금리차", "months": 60},
     {"id": "FEDFUNDS", "name": "Fed 기준금리", "months": 60},
@@ -59,6 +59,6 @@ FRED_SERIES_CONFIG = [
     {"id": "ICSA", "name": "신규 실업수당 청구건수", "months": 24},
     {"id": "CPIAUCSL", "name": "CPI 소비자물가", "months": 60},
     {"id": "PCEPILFE", "name": "Core PCE", "months": 60},
-    {"id": "WILSHIRE", "name": "Wilshire 5000 시가총액", "months": 120},
+    {"id": "NCBCEL", "name": "비금융기업 시가총액", "months": 120},
     {"id": "GDP", "name": "미국 GDP", "months": 120},
 ]

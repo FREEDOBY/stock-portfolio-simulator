@@ -68,7 +68,7 @@ export function DetailedAnalysis({ initialTab }: Props) {
               key={tabId}
               data-testid={`tab-${tabId}`}
               onClick={() => setActiveTab(tabId)}
-              className={`flex items-center gap-2 px-3 py-2 rounded text-xs font-mono uppercase tracking-wider transition-all whitespace-nowrap ${
+              className={`flex items-center gap-2 px-3 py-2 rounded text-sm font-mono uppercase tracking-wider transition-all whitespace-nowrap ${
                 isActive
                   ? 'bg-cyan-500/15 border border-cyan-500/40 text-cyan-400'
                   : 'text-slate-500 hover:text-slate-400 hover:bg-slate-800/50 border border-transparent'
@@ -89,7 +89,7 @@ export function DetailedAnalysis({ initialTab }: Props) {
           <div data-testid="tab-loading" className="flex items-center justify-center py-20">
             <div className="text-center">
               <div className="animate-spin h-6 w-6 border-2 border-cyan-400 border-t-transparent rounded-full mx-auto mb-3" />
-              <p className="text-xs font-mono text-slate-500">Loading {CATEGORY_CONFIG[activeTab]?.label}...</p>
+              <p className="text-sm font-mono text-slate-500">Loading {CATEGORY_CONFIG[activeTab]?.label}...</p>
             </div>
           </div>
         ) : (

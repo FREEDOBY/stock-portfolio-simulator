@@ -19,7 +19,9 @@
       "Bash(grep:*)",
       "Bash(set VERCEL=1)",
       "Bash($env:VERCEL=\"1\")",
-      "Skill(agentic-workflow)"
+      "Skill(agentic-workflow)",
+      "Bash(npx vitest:*)",
+      "Bash(python -c \":*)"
     ],
     "deny": [],
     "ask": []

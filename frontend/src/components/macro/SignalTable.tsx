@@ -19,11 +19,11 @@ export function SignalTable({ signals }: Props) {
         <table className="w-full">
           <thead>
             <tr className="border-b border-slate-700/50">
-              <th className="text-left py-2 px-3 text-xs text-slate-500 font-mono">#</th>
-              <th className="text-left py-2 px-3 text-xs text-slate-500 font-mono">SIGNAL</th>
-              <th className="text-center py-2 px-3 text-xs text-slate-500 font-mono">STATUS</th>
-              <th className="text-right py-2 px-3 text-xs text-slate-500 font-mono">SCORE</th>
-              <th className="text-left py-2 px-3 text-xs text-slate-500 font-mono">REASON</th>
+              <th className="text-left py-2 px-3 text-sm text-slate-500 font-mono">#</th>
+              <th className="text-left py-2 px-3 text-sm text-slate-500 font-mono">SIGNAL</th>
+              <th className="text-center py-2 px-3 text-sm text-slate-500 font-mono">STATUS</th>
+              <th className="text-right py-2 px-3 text-sm text-slate-500 font-mono">SCORE</th>
+              <th className="text-left py-2 px-3 text-sm text-slate-500 font-mono">REASON</th>
             </tr>
           </thead>
           <tbody>
@@ -34,7 +34,7 @@ export function SignalTable({ signals }: Props) {
                   key={signal.signal_id}
                   className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors"
                 >
-                  <td className="py-2.5 px-3 text-xs text-slate-600 font-mono">
+                  <td className="py-2.5 px-3 text-sm text-slate-600 font-mono">
                     {signal.signal_id}
                   </td>
                   <td className="py-2.5 px-3 text-sm text-slate-300 font-mono">
@@ -42,7 +42,7 @@ export function SignalTable({ signals }: Props) {
                   </td>
                   <td className="py-2.5 px-3 text-center">
                     <span
-                      className="px-2 py-0.5 text-xs font-mono rounded"
+                      className="px-2 py-0.5 text-sm font-mono rounded"
                       style={{
                         color: statusCfg.color,
                         backgroundColor: statusCfg.color + '20',
@@ -58,7 +58,7 @@ export function SignalTable({ signals }: Props) {
                   >
                     {signal.score > 0 ? '+' : ''}{signal.score.toFixed(1)}
                   </td>
-                  <td className="py-2.5 px-3 text-xs text-slate-500 font-mono truncate max-w-[200px]">
+                  <td className="py-2.5 px-3 text-sm text-slate-500 font-mono truncate max-w-[300px]" title={signal.reason}>
                     {signal.reason}
                   </td>
                 </tr>

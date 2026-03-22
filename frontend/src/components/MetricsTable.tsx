@@ -84,19 +84,19 @@ export function MetricsTable({ result, selectedBenchmarks }: Props) {
         <table className="w-full">
           <thead>
             <tr className="border-b border-slate-700/50">
-              <th className="text-left py-2 px-3 text-slate-500 font-mono text-xs uppercase">
+              <th className="text-left py-2 px-3 text-slate-500 font-mono text-sm uppercase">
                 Metric
               </th>
-              <th className="text-right py-2 px-3 text-emerald-400 font-mono text-xs">
+              <th className="text-right py-2 px-3 text-emerald-400 font-mono text-sm">
                 PORTFOLIO
               </th>
               {selectedBenchmarks.includes('QQQ') && (
-                <th className="text-right py-2 px-3 text-orange-400 font-mono text-xs">
+                <th className="text-right py-2 px-3 text-orange-400 font-mono text-sm">
                   QQQ
                 </th>
               )}
               {selectedBenchmarks.includes('SPY') && (
-                <th className="text-right py-2 px-3 text-violet-400 font-mono text-xs">
+                <th className="text-right py-2 px-3 text-violet-400 font-mono text-sm">
                   SPY
                 </th>
               )}

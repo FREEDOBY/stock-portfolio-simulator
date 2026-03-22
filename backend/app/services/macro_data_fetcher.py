@@ -148,10 +148,10 @@ class MacroDataFetcher:
     def fetch_category(self, category: str) -> dict[str, SeriesData]:
         """카테고리별 FRED 시리즈 수집"""
         category_map = {
-            "business_cycle": ["USALOLITOAASTSAM", "NAPM", "NAPMNOI", "NAPMII", "ISRATIO", "T10Y2Y"],
+            "business_cycle": ["USALOLITOAASTSAM", "IPMAN", "DGORDER", "AMTMNO", "ISRATIO", "T10Y2Y"],
             "liquidity": ["FEDFUNDS", "DGS10", "DGS2", "M2SL", "WALCL", "RRPONTSYD"],
             "sentiment": ["BAMLH0A0HYM2", "ICSA"],
-            "valuation": ["CPIAUCSL", "PCEPILFE", "WILSHIRE", "GDP"],
+            "valuation": ["CPIAUCSL", "PCEPILFE", "NCBCEL", "GDP"],
         }
 
         series_ids = category_map.get(category, [])

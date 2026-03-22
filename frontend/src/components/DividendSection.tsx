@@ -239,13 +239,13 @@ export function DividendSection({ dividendStats, portfolio = [] }: Props) {
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
             <XAxis
               dataKey={selectedYear === 'all' ? 'fullMonth' : 'month'}
-              tick={{ fontSize: 10, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
+              tick={{ fontSize: 12, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
               stroke="#1e293b"
               interval="preserveStartEnd"
             />
             <YAxis
               tickFormatter={(v) => `$${v}`}
-              tick={{ fontSize: 10, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
+              tick={{ fontSize: 12, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
               stroke="#1e293b"
               width={50}
             />
@@ -260,7 +260,7 @@ export function DividendSection({ dividendStats, portfolio = [] }: Props) {
                 border: '1px solid rgba(100, 116, 139, 0.3)',
                 borderRadius: '4px',
                 fontFamily: 'JetBrains Mono, monospace',
-                fontSize: '11px',
+                fontSize: '13px',
                 color: '#e2e8f0',
               }}
             />
@@ -269,7 +269,7 @@ export function DividendSection({ dividendStats, portfolio = [] }: Props) {
                 <Legend
                   wrapperStyle={{
                     fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: '10px',
+                    fontSize: '12px',
                   }}
                 />
                 {etfList.map((etf) => (

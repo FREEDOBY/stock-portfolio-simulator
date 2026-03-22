@@ -108,7 +108,7 @@ class MacroService:
             indicators["cli_value"] = None
 
         # ISM PMI 트렌드
-        pmi_data = self._series_to_pd(raw.fred_series.get("NAPM"))
+        pmi_data = self._series_to_pd(raw.fred_series.get("IPMAN"))
         indicators["pmi_trend"] = self.calc.trend_direction(pmi_data) if pmi_data is not None and not pmi_data.empty else None
 
         # 재고/출하비율 트렌드
@@ -156,9 +156,10 @@ class MacroService:
         indicators["cpi_yoy"] = float(self.calc.yoy_percent(cpi_data).iloc[-1]) if cpi_data is not None and len(cpi_data) >= 13 else None
 
         # 버핏지표
-        wilshire = self._last_value(raw.fred_series.get("WILSHIRE"))
+        wilshire = self._last_value(raw.fred_series.get("NCBCEL"))
         gdp = self._last_value(raw.fred_series.get("GDP"))
-        indicators["buffett"] = self.calc.buffett_indicator(wilshire, gdp) if wilshire and gdp else None
+        # NCBCEL은 백만달러, GDP는 십억달러 → NCBCEL/1000으로 단위 통일
+        indicators["buffett"] = self.calc.buffett_indicator(wilshire / 1000, gdp) if wilshire and gdp else None
 
         # VIX
         vix_prices = self._points_to_pd(raw.vix)
@@ -182,7 +183,10 @@ class MacroService:
         signals.append(self.engine.signal_1_dca())
 
         # 시그널 2
-        signals.append(self.engine.signal_2_cli_mom(indicators.get("cli_mom", pd.Series([], dtype=float))))
+        signals.append(self.engine.signal_2_cli_mom(
+            indicators.get("cli_mom", pd.Series([], dtype=float)),
+            accel_series=indicators.get("cli_acceleration"),
+        ))
 
         # 시그널 3 키친사이클 + CLI 교차검증
         s3 = self.engine.signal_3_kitchen_cycle(
@@ -215,18 +219,30 @@ class MacroService:
         elif "Phase 4" in s3.reason:
             kitchen_phase = 4
 
-        # 시그널 4: 매수(200주선) 또는 매도(MACD 다이버전스) 중 더 강한 것
+        # 시그널 4: 200주선 + MACD 다이버전스 종합
         nasdaq = indicators.get("nasdaq_prices", pd.Series([], dtype=float))
         macd_line = indicators.get("macd_line", pd.Series([], dtype=float))
 
-        s4_buy = self.engine.signal_4_buy_sma200(indicators.get("distance_pct"))
-        s4_sell = self.engine.signal_4_sell_macd_divergence(
+        s4_sma = self.engine.signal_4_buy_sma200(indicators.get("distance_pct"))
+        s4_div = self.engine.signal_4_sell_macd_divergence(
             price_peaks=self._find_peaks(nasdaq, is_max=True),
             macd_peaks=self._find_peaks(macd_line, is_max=True),
             elliott_count=self._elliott_count,
         )
-        # 더 강한 시그널 선택
-        signals.append(s4_buy if abs(s4_buy.score) >= abs(s4_sell.score) else s4_sell)
+        # 두 시그널 합산 (200주선 위치 + MACD 다이버전스)
+        combined_score = (s4_sma.score + s4_div.score) / 2
+        combined_reason = f"{s4_sma.reason} | {s4_div.reason}"
+        if combined_score > 0:
+            combined_status = SignalStatus.BUY
+        elif combined_score < 0:
+            combined_status = SignalStatus.SELL
+        else:
+            combined_status = SignalStatus.WAIT
+        signals.append(SignalResult(
+            signal_id=4, name="기술적 종합", score=round(combined_score, 1),
+            weight=self.engine.WEIGHTS[4], status=combined_status,
+            reason=combined_reason,
+        ))
 
         # 시그널 5
         signals.append(self.engine.signal_5_macd_bottom_rsi(
@@ -284,7 +300,7 @@ class MacroService:
                 "key_values": {"phase": kitchen_phase, "cli_mom": cli_mom_val},
             },
             "liquidity": {
-                "status": "neutral",
+                "status": self._liquidity_status(indicators),
                 "key_values": {
                     "fed_rate": indicators.get("fed_rate"),
                     "m2_yoy": round(indicators["m2_yoy"], 2) if indicators.get("m2_yoy") is not None else None,
@@ -298,7 +314,7 @@ class MacroService:
                 },
             },
             "sentiment": {
-                "status": "fear" if (indicators.get("vix_value") or 0) > 30 else "neutral",
+                "status": self._sentiment_status(indicators),
                 "key_values": {
                     "vix": round(indicators["vix_value"], 1) if indicators.get("vix_value") is not None else None,
                     "hy_spread": indicators.get("hy_spread"),
@@ -339,6 +355,47 @@ class MacroService:
             result["rsi"] = [{"date": str(idx), "value": round(float(v), 2)} for idx, v in rsi.dropna().items()]
 
         return result
+
+    # ─── 상태 판정 ───
+
+    def _liquidity_status(self, indicators: dict) -> str:
+        """유동성 상태 판정: M2 YoY% + Fed 금리 기반"""
+        m2_yoy = indicators.get("m2_yoy")
+        fed_rate = indicators.get("fed_rate")
+
+        if m2_yoy is not None and fed_rate is not None:
+            # M2 증가 + 금리 인하 → 유동성 확장 (bullish)
+            if m2_yoy > 5 and fed_rate < 3:
+                return "bullish"
+            # M2 감소 + 금리 인상 → 유동성 긴축 (bearish)
+            if m2_yoy < 0 or fed_rate > 5:
+                return "bearish"
+            # M2 양수 → 약간 긍정
+            if m2_yoy > 0:
+                return "bullish"
+
+        return "neutral"
+
+    def _sentiment_status(self, indicators: dict) -> str:
+        """시장 심리 상태 판정: VIX + HY 스프레드 기반"""
+        vix = indicators.get("vix_value")
+        hy = indicators.get("hy_spread")
+
+        if vix is not None:
+            if vix > 35:
+                return "fear"
+            if vix > 25:
+                return "bearish"
+            if vix < 15:
+                return "bullish"
+
+        if hy is not None:
+            if hy > 5:
+                return "fear"
+            if hy > 4:
+                return "bearish"
+
+        return "neutral"
 
     # ─── 유틸 ───
 

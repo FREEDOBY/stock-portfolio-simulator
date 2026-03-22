@@ -28,7 +28,7 @@ export function MacroLineChart({
 }: Props) {
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-40 text-xs text-slate-600 font-mono">
+      <div className="flex items-center justify-center h-40 text-sm text-slate-600 font-mono">
         No data available
       </div>
     );
@@ -41,12 +41,12 @@ export function MacroLineChart({
           <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 9, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
+            tick={{ fontSize: 11, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
             stroke="#1e293b"
             interval="preserveStartEnd"
           />
           <YAxis
-            tick={{ fontSize: 9, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
+            tick={{ fontSize: 11, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
             stroke="#1e293b"
             width={55}
             tickFormatter={yAxisFormatter}
@@ -57,11 +57,11 @@ export function MacroLineChart({
               border: '1px solid rgba(100,116,139,0.3)',
               borderRadius: '4px',
               fontFamily: 'JetBrains Mono, monospace',
-              fontSize: '11px',
+              fontSize: '13px',
               color: '#e2e8f0',
             }}
           />
-          <Legend wrapperStyle={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px' }} />
+          <Legend wrapperStyle={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }} />
 
           {referenceLines.map((ref, i) => (
             <ReferenceLine
@@ -70,7 +70,7 @@ export function MacroLineChart({
               stroke={ref.color}
               strokeDasharray="3 3"
               strokeWidth={1}
-              label={ref.label ? { value: ref.label, position: 'right', fontSize: 9, fill: ref.color } : undefined}
+              label={ref.label ? { value: ref.label, position: 'right', fontSize: 11, fill: ref.color } : undefined}
             />
           ))}
 

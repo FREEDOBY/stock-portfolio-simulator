@@ -16,7 +16,7 @@ export function Sidebar({
     <div
       data-testid="sidebar"
       className={`bg-[#0d1117] border-r border-slate-700/50 flex flex-col h-screen transition-all duration-300 ease-in-out ${
-        collapsed ? 'w-[60px]' : 'w-[200px]'
+        collapsed ? 'w-[60px]' : 'w-[260px]'
       }`}
     >
       {/* Logo / Brand */}
@@ -28,7 +28,7 @@ export function Sidebar({
         ) : (
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
-            <span className="text-emerald-400 font-mono font-bold text-xs tracking-wider uppercase">
+            <span className="text-emerald-400 font-mono font-bold text-sm tracking-wider uppercase">
               Terminal
             </span>
           </div>
@@ -80,11 +80,11 @@ export function Sidebar({
               {/* Label & Badge - 펼침 모드에서만 표시 */}
               {!collapsed && (
                 <div className="flex-1 min-w-0 flex items-center justify-between">
-                  <span className="text-xs font-mono uppercase tracking-wider truncate">
+                  <span className="text-sm font-mono uppercase tracking-wider">
                     {item.label}
                   </span>
                   {item.badge && (
-                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 flex-shrink-0">
+                    <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 flex-shrink-0">
                       {item.badge}
                     </span>
                   )}

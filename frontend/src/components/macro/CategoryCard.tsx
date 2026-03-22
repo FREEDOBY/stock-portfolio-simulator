@@ -10,7 +10,7 @@ interface Props {
 const STATUS_COLORS: Record<string, string> = {
   bullish: '#10b981',
   bearish: '#ef4444',
-  neutral: '#64748b',
+  neutral: '#3b82f6',
   fear: '#f97316',
   overvalued: '#f59e0b',
 };
@@ -25,19 +25,20 @@ export function CategoryCard({ categoryId, summary, onClick }: Props) {
     <button
       data-testid={`category-card-${categoryId}`}
       onClick={onClick}
-      className="bg-[#111827] border border-slate-700/50 rounded-lg p-4 text-left hover:border-slate-600/50 transition-all w-full group"
+      className="bg-[#111827] rounded-lg p-4 text-left hover:border-slate-600/50 transition-all w-full group"
+      style={{ border: `1px solid ${statusColor}40` }}
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4" style={{ color: statusColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={config.icon} />
           </svg>
-          <span className="text-xs font-mono text-slate-400 uppercase tracking-wider">
+          <span className="text-sm font-mono text-slate-400 uppercase tracking-wider">
             {config.label}
           </span>
         </div>
         <div
-          className="w-2 h-2 rounded-full"
+          className="w-3 h-3 rounded-full animate-pulse"
           style={{ backgroundColor: statusColor }}
         />
       </div>
@@ -48,7 +49,7 @@ export function CategoryCard({ categoryId, summary, onClick }: Props) {
           if (value === null || value === undefined) return null;
           return (
             <div key={key} className="flex justify-between items-center">
-              <span className="text-xs text-slate-600 font-mono uppercase">{key}</span>
+              <span className="text-sm text-slate-600 font-mono uppercase">{key}</span>
               <span className="text-sm font-bold font-mono" style={{ color: statusColor }}>
                 {typeof value === 'number' ? value.toFixed(value % 1 === 0 ? 0 : 2) : value}
               </span>
@@ -58,7 +59,7 @@ export function CategoryCard({ categoryId, summary, onClick }: Props) {
       </div>
 
       {/* 호버 힌트 */}
-      <div className="mt-2 text-xs text-slate-700 font-mono group-hover:text-cyan-500 transition-colors">
+      <div className="mt-2 text-sm text-slate-700 font-mono group-hover:text-cyan-500 transition-colors">
         Click for details →
       </div>
     </button>

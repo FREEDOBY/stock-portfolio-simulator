@@ -62,7 +62,7 @@ export function CycleDiagram({ currentPhase }: Props) {
                 y={cy + (radius + 25) * Math.sin(rad)}
                 textAnchor="middle"
                 fill={isActive ? phase.color : '#475569'}
-                fontSize={isActive ? 10 : 9}
+                fontSize={isActive ? 12 : 11}
                 fontFamily="JetBrains Mono, monospace"
                 fontWeight={isActive ? 'bold' : 'normal'}
               >
@@ -88,10 +88,10 @@ export function CycleDiagram({ currentPhase }: Props) {
         </defs>
 
         {/* 중앙 텍스트 */}
-        <text x={cx} y={cy - 5} textAnchor="middle" fill="#94a3b8" fontSize="9" fontFamily="JetBrains Mono, monospace">
+        <text x={cx} y={cy - 5} textAnchor="middle" fill="#94a3b8" fontSize="11" fontFamily="JetBrains Mono, monospace">
           Kitchen
         </text>
-        <text x={cx} y={cy + 8} textAnchor="middle" fill="#94a3b8" fontSize="9" fontFamily="JetBrains Mono, monospace">
+        <text x={cx} y={cy + 8} textAnchor="middle" fill="#94a3b8" fontSize="11" fontFamily="JetBrains Mono, monospace">
           Cycle
         </text>
       </svg>

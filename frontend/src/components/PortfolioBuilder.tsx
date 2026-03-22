@@ -62,13 +62,13 @@ export function PortfolioBuilder({ portfolio, setPortfolio }: Props) {
               <div className="flex-1 min-w-0">
                 {isKoreanSymbol(item.symbol) ? (
                   <>
-                    <span className="font-semibold text-cyan-400 text-sm">{item.name}</span>
+                    <span className="font-semibold text-cyan-400 text-sm truncate" title={item.name}>{item.name}</span>
                     <span className="ml-2 text-slate-600 text-xs font-mono">{item.symbol}</span>
                   </>
                 ) : (
                   <>
                     <span className="font-bold text-cyan-400 text-sm font-mono">{item.symbol}</span>
-                    <span className="ml-2 text-slate-500 text-xs truncate">{item.name}</span>
+                    <span className="ml-2 text-slate-500 text-xs truncate" title={item.name}>{item.name}</span>
                   </>
                 )}
               </div>
@@ -109,7 +109,7 @@ export function PortfolioBuilder({ portfolio, setPortfolio }: Props) {
             {totalWeight !== 100 && totalWeight > 0 && (
               <button
                 onClick={handleNormalize}
-                className="text-xs text-cyan-400 hover:text-cyan-300 font-mono"
+                className="text-sm text-cyan-400 hover:text-cyan-300 font-mono"
               >
                 [NORMALIZE]
               </button>

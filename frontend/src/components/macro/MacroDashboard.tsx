@@ -40,7 +40,7 @@ export function MacroDashboard({ onNavigateToDetail }: Props) {
         <div className="text-center">
           <div className="animate-spin h-8 w-8 border-2 border-cyan-400 border-t-transparent rounded-full mx-auto mb-4" />
           <p className="text-sm font-mono text-slate-500">Loading macro data...</p>
-          <p className="text-xs font-mono text-slate-700 mt-1">Fetching FRED + Yahoo Finance</p>
+          <p className="text-sm font-mono text-slate-700 mt-1">Fetching FRED + Yahoo Finance</p>
         </div>
       </div>
     );
@@ -58,7 +58,7 @@ export function MacroDashboard({ onNavigateToDetail }: Props) {
         <p className="text-sm font-mono text-red-400 mb-1">[ERROR] {error}</p>
         <button
           onClick={() => window.location.reload()}
-          className="mt-3 px-4 py-1.5 text-xs font-mono bg-red-500/10 border border-red-500/30 text-red-400 rounded hover:bg-red-500/20 transition-colors"
+          className="mt-3 px-4 py-1.5 text-sm font-mono bg-red-500/10 border border-red-500/30 text-red-400 rounded hover:bg-red-500/20 transition-colors"
         >
           RETRY
         </button>

@@ -22,7 +22,7 @@ export function ValuationTab({ data }: Props) {
   }).filter((d) => d['CPI YoY%'] !== null);
 
   // 버핏 지표
-  const wilshireRaw = data['WILSHIRE']?.data || [];
+  const wilshireRaw = data['NCBCEL']?.data || [];
   const gdpRaw = data['GDP']?.data || [];
   const buffettData = wilshireRaw.map((d, i) => {
     const gdpVal = gdpRaw[i]?.value;

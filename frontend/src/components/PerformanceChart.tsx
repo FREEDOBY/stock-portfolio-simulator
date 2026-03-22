@@ -531,14 +531,14 @@ export function PerformanceChart({
             <XAxis
               dataKey="date"
               tickFormatter={formatDate}
-              tick={{ fontSize: 10, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
+              tick={{ fontSize: 12, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
               stroke="#1e293b"
               interval="preserveStartEnd"
             />
 
             <YAxis
               tickFormatter={yAxisConfig.formatter}
-              tick={{ fontSize: 10, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
+              tick={{ fontSize: 12, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
               stroke="#1e293b"
               width={60}
             />
@@ -560,7 +560,7 @@ export function PerformanceChart({
                 if (value === 'SPY' || value === 'SPYReturn') return 'SPY';
                 return value;
               }}
-              wrapperStyle={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px' }}
+              wrapperStyle={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px' }}
             />
 
             {viewMode === 'returns' && (
@@ -666,14 +666,14 @@ export function PerformanceChart({
                   <XAxis
                     dataKey="date"
                     tickFormatter={formatDate}
-                    tick={{ fontSize: 9, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
+                    tick={{ fontSize: 11, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
                     stroke="#1e293b"
                     interval="preserveStartEnd"
                   />
 
                   <YAxis
                     tickFormatter={(v) => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`}
-                    tick={{ fontSize: 9, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
+                    tick={{ fontSize: 11, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
                     stroke="#1e293b"
                     width={50}
                   />
@@ -689,7 +689,7 @@ export function PerformanceChart({
                       border: '1px solid rgba(100, 116, 139, 0.3)',
                       borderRadius: '4px',
                       fontFamily: 'JetBrains Mono, monospace',
-                      fontSize: '11px',
+                      fontSize: '13px',
                       color: '#e2e8f0',
                     }}
                   />
