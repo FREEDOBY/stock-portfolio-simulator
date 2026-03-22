@@ -17,7 +17,6 @@ export function SavedPortfolioList({ currentPortfolio, onLoad }: Props) {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [newName, setNewName] = useState('');
 
-  // 저장된 포트폴리오 로드
   useEffect(() => {
     const saved = localStorage.getItem(SAVED_PORTFOLIOS_KEY);
     if (saved) {
@@ -29,7 +28,6 @@ export function SavedPortfolioList({ currentPortfolio, onLoad }: Props) {
     }
   }, []);
 
-  // 포트폴리오 저장
   const handleSave = () => {
     if (!newName.trim() || currentPortfolio.length === 0) return;
 
@@ -50,46 +48,47 @@ export function SavedPortfolioList({ currentPortfolio, onLoad }: Props) {
     setShowSaveModal(false);
   };
 
-  // 포트폴리오 삭제
   const handleDelete = (id: string) => {
     const updated = savedPortfolios.filter((p) => p.id !== id);
     setSavedPortfolios(updated);
     localStorage.setItem(SAVED_PORTFOLIOS_KEY, JSON.stringify(updated));
   };
 
-  // 포트폴리오 로드
   const handleLoad = (portfolio: PortfolioItem[]) => {
     onLoad(portfolio);
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-6">
+    <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-5">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold text-gray-800">저장된 포트폴리오</h3>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+          <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider font-mono">Saved</h3>
+        </div>
         <button
           onClick={() => setShowSaveModal(true)}
           disabled={currentPortfolio.length === 0}
-          className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+          className={`px-3 py-1 text-xs font-mono rounded transition-colors ${
             currentPortfolio.length > 0
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              ? 'bg-cyan-500/20 border border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/30'
+              : 'bg-slate-800 border border-slate-700 text-slate-600 cursor-not-allowed'
           }`}
         >
-          현재 포트폴리오 저장
+          SAVE
         </button>
       </div>
 
       {/* 저장 모달 */}
       {showSaveModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-96 shadow-xl">
-            <h4 className="text-lg font-semibold mb-4">포트폴리오 저장</h4>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-[#111827] border border-slate-600/50 rounded-lg p-6 w-96 shadow-2xl shadow-black/50">
+            <h4 className="text-sm font-bold text-slate-300 mb-4 uppercase tracking-wider font-mono">Save Portfolio</h4>
             <input
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="포트폴리오 이름"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4"
+              placeholder="Portfolio name..."
+              className="w-full px-3 py-2 bg-[#0a0e17] border border-slate-600/50 rounded text-slate-200 text-sm font-mono placeholder-slate-600 mb-4 focus:border-cyan-500 focus:outline-none"
               autoFocus
             />
             <div className="flex gap-2 justify-end">
@@ -98,20 +97,20 @@ export function SavedPortfolioList({ currentPortfolio, onLoad }: Props) {
                   setShowSaveModal(false);
                   setNewName('');
                 }}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                className="px-4 py-1.5 text-sm text-slate-500 hover:text-slate-400 font-mono rounded border border-slate-700 hover:border-slate-600 transition-colors"
               >
-                취소
+                CANCEL
               </button>
               <button
                 onClick={handleSave}
                 disabled={!newName.trim()}
-                className={`px-4 py-2 rounded-lg ${
+                className={`px-4 py-1.5 text-sm font-mono rounded transition-colors ${
                   newName.trim()
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/30'
+                    : 'bg-slate-800 border border-slate-700 text-slate-600 cursor-not-allowed'
                 }`}
               >
-                저장
+                SAVE
               </button>
             </div>
           </div>
@@ -120,34 +119,34 @@ export function SavedPortfolioList({ currentPortfolio, onLoad }: Props) {
 
       {/* 저장된 포트폴리오 목록 */}
       {savedPortfolios.length === 0 ? (
-        <p className="text-gray-500 text-sm text-center py-4">
-          저장된 포트폴리오가 없습니다
+        <p className="text-slate-600 text-xs text-center py-4 font-mono">
+          No saved portfolios
         </p>
       ) : (
-        <div className="space-y-2 max-h-48 overflow-y-auto">
+        <div className="space-y-1.5 max-h-48 overflow-y-auto">
           {savedPortfolios.map((saved) => (
             <div
               key={saved.id}
-              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+              className="flex items-center justify-between p-2.5 bg-[#0d1117] border border-slate-700/30 rounded hover:border-slate-600/50 transition-colors"
             >
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-800 truncate">{saved.name}</p>
-                <p className="text-xs text-gray-500">
-                  {saved.portfolio.map((p) => p.symbol).join(', ')}
+                <p className="font-mono text-sm text-slate-300 truncate">{saved.name}</p>
+                <p className="text-xs text-slate-600 font-mono">
+                  {saved.portfolio.map((p) => p.symbol).join(' | ')}
                 </p>
               </div>
-              <div className="flex gap-2 ml-2">
+              <div className="flex gap-1.5 ml-2">
                 <button
                   onClick={() => handleLoad(saved.portfolio)}
-                  className="px-2 py-1 text-xs bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
+                  className="px-2 py-1 text-xs bg-cyan-500/10 text-cyan-400 rounded hover:bg-cyan-500/20 font-mono border border-cyan-500/30 transition-colors"
                 >
-                  불러오기
+                  LOAD
                 </button>
                 <button
                   onClick={() => handleDelete(saved.id)}
-                  className="px-2 py-1 text-xs bg-red-100 text-red-600 rounded hover:bg-red-200"
+                  className="px-2 py-1 text-xs bg-red-500/10 text-red-400 rounded hover:bg-red-500/20 font-mono border border-red-500/30 transition-colors"
                 >
-                  삭제
+                  DEL
                 </button>
               </div>
             </div>

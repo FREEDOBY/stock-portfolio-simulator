@@ -94,8 +94,8 @@ export function ETFSearch({ onAdd, existingSymbols }: Props) {
   };
 
   return (
-    <div ref={wrapperRef} className="relative">
-      <div className="flex gap-2">
+    <div ref={wrapperRef} className="relative overflow-hidden">
+      <div className="flex gap-1.5">
         <input
           type="text"
           value={query}
@@ -109,43 +109,43 @@ export function ETFSearch({ onAdd, existingSymbols }: Props) {
               handleDirectAdd();
             }
           }}
-          placeholder="ETF/주식 검색 (예: SPY, 삼성전자, 005930)"
-          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="SPY, 삼성전자..."
+          className="flex-1 min-w-0 px-2 py-2 bg-[#0a0e17] border border-slate-600/50 rounded text-slate-200 text-sm font-mono placeholder-slate-600 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
         />
         <button
           onClick={handleDirectAdd}
           disabled={!query.trim() || isValidating}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed whitespace-nowrap"
+          className="flex-shrink-0 px-2.5 py-2 bg-cyan-600/20 border border-cyan-500/50 text-cyan-400 rounded text-xs font-mono hover:bg-cyan-600/30 disabled:bg-slate-800 disabled:text-slate-600 disabled:border-slate-700 disabled:cursor-not-allowed transition-colors"
         >
-          {isValidating ? '확인중...' : '직접 추가'}
+          {isValidating ? '...' : 'ADD'}
         </button>
       </div>
 
       {(isLoading || isValidating) && (
-        <div className="absolute right-28 top-2.5">
-          <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+        <div className="absolute right-20 top-2.5">
+          <div className="animate-spin h-4 w-4 border-2 border-cyan-400 border-t-transparent rounded-full"></div>
         </div>
       )}
 
       {validationError && (
-        <p className="mt-1 text-sm text-red-500">{validationError}</p>
+        <p className="mt-1 text-xs text-red-400 font-mono">{validationError}</p>
       )}
 
       {isOpen && results.length > 0 && (
-        <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+        <ul className="absolute z-10 w-full mt-1 bg-[#111827] border border-slate-600/50 rounded shadow-xl shadow-black/50 max-h-60 overflow-auto">
           {results.map((etf) => (
             <li
               key={etf.symbol}
               onClick={() => handleSelect(etf)}
-              className="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+              className="px-3 py-2 hover:bg-cyan-500/10 cursor-pointer border-b border-slate-700/30 last:border-b-0 transition-colors"
             >
-              <span className="font-semibold text-blue-600">{etf.symbol}</span>
+              <span className="font-bold text-cyan-400 font-mono text-sm">{etf.symbol}</span>
               {etf.is_korean && (
-                <span className="ml-1 px-1.5 py-0.5 text-xs bg-red-100 text-red-600 rounded">KR</span>
+                <span className="ml-1 px-1.5 py-0.5 text-xs bg-red-500/20 text-red-400 rounded font-mono">KR</span>
               )}
-              <span className="ml-2 text-gray-600 text-sm">{etf.name}</span>
+              <span className="ml-2 text-slate-400 text-sm">{etf.name}</span>
               {etf.market && (
-                <span className="ml-1 text-gray-400 text-xs">({etf.market})</span>
+                <span className="ml-1 text-slate-600 text-xs font-mono">({etf.market})</span>
               )}
             </li>
           ))}
@@ -153,9 +153,9 @@ export function ETFSearch({ onAdd, existingSymbols }: Props) {
       )}
 
       {isOpen && results.length === 0 && query.length >= 1 && !isLoading && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-center text-gray-500">
-          <p className="text-sm">검색 결과가 없습니다.</p>
-          <p className="text-xs mt-1">심볼을 정확히 입력 후 "직접 추가"를 클릭하세요.</p>
+        <div className="absolute z-10 w-full mt-1 bg-[#111827] border border-slate-600/50 rounded shadow-xl p-3 text-center">
+          <p className="text-sm text-slate-500 font-mono">No results found</p>
+          <p className="text-xs mt-1 text-slate-600 font-mono">Enter exact symbol & click ADD</p>
         </div>
       )}
     </div>

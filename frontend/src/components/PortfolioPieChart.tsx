@@ -7,16 +7,16 @@ interface Props {
 }
 
 const COLORS = [
-  '#3B82F6', // blue-500
-  '#10B981', // emerald-500
-  '#F59E0B', // amber-500
-  '#EF4444', // red-500
-  '#8B5CF6', // violet-500
-  '#EC4899', // pink-500
-  '#06B6D4', // cyan-500
-  '#84CC16', // lime-500
-  '#F97316', // orange-500
-  '#6366F1', // indigo-500
+  '#00d4aa', // emerald
+  '#f97316', // orange
+  '#a78bfa', // violet
+  '#f43f5e', // rose
+  '#06b6d4', // cyan
+  '#eab308', // yellow
+  '#ec4899', // pink
+  '#84cc16', // lime
+  '#3b82f6', // blue
+  '#14b8a6', // teal
 ];
 
 export function PortfolioPieChart({ portfolio }: Props) {
@@ -34,19 +34,24 @@ export function PortfolioPieChart({ portfolio }: Props) {
   const totalWeight = portfolio.reduce((sum, item) => sum + item.weight, 0);
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-6">
-      <h3 className="text-lg font-semibold text-gray-800 mb-4">포트폴리오 구성</h3>
-      <div className="h-64">
+    <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-1.5 h-1.5 rounded-full bg-violet-400"></div>
+        <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider font-mono">Allocation</h3>
+      </div>
+      <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={data}
               cx="50%"
               cy="50%"
-              innerRadius={50}
-              outerRadius={80}
+              innerRadius={45}
+              outerRadius={75}
               paddingAngle={2}
               dataKey="value"
+              stroke="#111827"
+              strokeWidth={2}
               label={({ name, value }) => `${name} ${((value / totalWeight) * 100).toFixed(0)}%`}
               labelLine={false}
             >
@@ -55,17 +60,30 @@ export function PortfolioPieChart({ portfolio }: Props) {
               ))}
             </Pie>
             <Tooltip
-              formatter={(value: number) => [`${((value / totalWeight) * 100).toFixed(1)}%`, '비중']}
+              formatter={(value: number) => [`${((value / totalWeight) * 100).toFixed(1)}%`, 'Weight']}
               labelFormatter={(name) => {
                 const item = data.find((d) => d.name === name);
                 if (!item) return name;
-                // 한국 종목: 이름 (심볼), 해외 종목: 심볼 (이름)
                 return isKoreanSymbol(item.symbol)
                   ? `${item.name} (${item.symbol})`
                   : `${item.name} (${item.fullName})`;
               }}
+              contentStyle={{
+                backgroundColor: '#1a1f2e',
+                border: '1px solid rgba(100, 116, 139, 0.3)',
+                borderRadius: '4px',
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: '11px',
+                color: '#e2e8f0',
+              }}
             />
-            <Legend />
+            <Legend
+              wrapperStyle={{
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: '11px',
+              }}
+              formatter={(value) => <span style={{ color: '#94a3b8' }}>{value}</span>}
+            />
           </PieChart>
         </ResponsiveContainer>
       </div>

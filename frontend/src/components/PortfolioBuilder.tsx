@@ -37,40 +37,43 @@ export function PortfolioBuilder({ portfolio, setPortfolio }: Props) {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-6">
-      <h2 className="text-xl font-bold text-gray-800 mb-4">포트폴리오 구성</h2>
+    <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-1.5 h-1.5 rounded-full bg-cyan-400"></div>
+        <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider font-mono">Holdings</h2>
+      </div>
 
       <ETFSearch
         onAdd={handleAdd}
         existingSymbols={portfolio.map((p) => p.symbol)}
       />
 
-      <div className="mt-4 space-y-2">
+      <div className="mt-4 space-y-1">
         {portfolio.length === 0 ? (
-          <p className="text-gray-500 text-center py-4">
-            ETF를 검색하여 추가하세요
+          <p className="text-slate-600 text-center py-4 text-sm font-mono">
+            Add securities to build portfolio
           </p>
         ) : (
           portfolio.map((item) => (
             <div
               key={item.symbol}
-              className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+              className="flex items-center gap-3 p-2.5 bg-[#0d1117] border border-slate-700/30 rounded hover:border-slate-600/50 transition-colors"
             >
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 {isKoreanSymbol(item.symbol) ? (
                   <>
-                    <span className="font-semibold text-blue-600">{item.name}</span>
-                    <span className="ml-2 text-gray-400 text-xs">{item.symbol}</span>
+                    <span className="font-semibold text-cyan-400 text-sm">{item.name}</span>
+                    <span className="ml-2 text-slate-600 text-xs font-mono">{item.symbol}</span>
                   </>
                 ) : (
                   <>
-                    <span className="font-semibold text-blue-600">{item.symbol}</span>
-                    <span className="ml-2 text-gray-500 text-sm">{item.name}</span>
+                    <span className="font-bold text-cyan-400 text-sm font-mono">{item.symbol}</span>
+                    <span className="ml-2 text-slate-500 text-xs truncate">{item.name}</span>
                   </>
                 )}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <input
                   type="number"
                   min="0"
@@ -79,15 +82,15 @@ export function PortfolioBuilder({ portfolio, setPortfolio }: Props) {
                   onChange={(e) =>
                     handleWeightChange(item.symbol, Number(e.target.value))
                   }
-                  className="w-20 px-2 py-1 border border-gray-300 rounded text-right"
+                  className="w-16 px-2 py-1 bg-[#0a0e17] border border-slate-600/50 rounded text-right text-emerald-400 font-mono text-sm focus:border-cyan-500 focus:outline-none"
                 />
-                <span className="text-gray-600">%</span>
+                <span className="text-slate-500 text-xs font-mono">%</span>
 
                 <button
                   onClick={() => handleRemove(item.symbol)}
-                  className="ml-2 text-red-500 hover:text-red-700"
+                  className="ml-1 text-slate-600 hover:text-red-400 transition-colors"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -98,23 +101,23 @@ export function PortfolioBuilder({ portfolio, setPortfolio }: Props) {
       </div>
 
       {portfolio.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
+        <div className="mt-3 pt-3 border-t border-slate-700/30">
           <div className="flex justify-between items-center">
-            <span className={`font-semibold ${totalWeight === 100 ? 'text-green-600' : 'text-orange-500'}`}>
-              합계: {totalWeight}%
+            <span className={`font-mono text-sm font-bold ${totalWeight === 100 ? 'text-emerald-400 glow-green' : 'text-amber-400'}`}>
+              TOTAL: {totalWeight}%
             </span>
             {totalWeight !== 100 && totalWeight > 0 && (
               <button
                 onClick={handleNormalize}
-                className="text-sm text-blue-600 hover:text-blue-800"
+                className="text-xs text-cyan-400 hover:text-cyan-300 font-mono"
               >
-                100%로 정규화
+                [NORMALIZE]
               </button>
             )}
           </div>
           {totalWeight !== 100 && (
-            <p className="text-sm text-orange-500 mt-1">
-              비중 합계가 100%가 아닙니다
+            <p className="text-xs text-amber-400/70 mt-1 font-mono">
+              ! Weight sum != 100%
             </p>
           )}
         </div>

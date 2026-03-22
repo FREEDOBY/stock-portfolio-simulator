@@ -38,27 +38,26 @@ const BENCHMARK_CONFIG: Record<
   { color: string; label: string; areaColor: string }
 > = {
   QQQ: {
-    color: '#ef4444',
-    label: 'QQQ (나스닥 100)',
-    areaColor: 'rgba(239, 68, 68, 0.15)',
+    color: '#f97316',
+    label: 'QQQ (NASDAQ 100)',
+    areaColor: 'rgba(249, 115, 22, 0.1)',
   },
   SPY: {
-    color: '#22c55e',
+    color: '#a78bfa',
     label: 'SPY (S&P 500)',
-    areaColor: 'rgba(34, 197, 94, 0.15)',
+    areaColor: 'rgba(167, 139, 250, 0.1)',
   },
 };
 
-const PORTFOLIO_COLOR = '#3b82f6';
+const PORTFOLIO_COLOR = '#00d4aa';
 
 // 줌 설정
 const ZOOM_CONFIG = {
-  MIN_VISIBLE_POINTS: 10,  // 최소 표시 데이터 포인트
-  ZOOM_FACTOR: 0.1,        // 휠 1회에 10% 확대/축소
-  THROTTLE_MS: 16,         // ~60fps 제한
+  MIN_VISIBLE_POINTS: 10,
+  ZOOM_FACTOR: 0.1,
+  THROTTLE_MS: 16,
 } as const;
 
-// 성능 최적화를 위한 throttle 함수
 function throttle(
   func: (e: WheelEvent) => void,
   limit: number
@@ -75,7 +74,7 @@ function throttle(
 
 interface ZoomState {
   startIndex: number;
-  endIndex: number; // -1은 전체 데이터
+  endIndex: number;
 }
 
 interface ChartDataPoint {
@@ -111,19 +110,16 @@ function CustomTooltip({
   if (!data) return null;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm">
-      <p className="font-semibold text-gray-700 mb-2 border-b pb-1">{label}</p>
+    <div className="bg-[#1a1f2e] border border-slate-600/50 rounded p-3 text-sm shadow-xl shadow-black/50">
+      <p className="font-mono text-slate-400 mb-2 border-b border-slate-700/50 pb-1 text-xs">{label}</p>
 
-      <div className="space-y-1">
-        <div className="flex justify-between items-center gap-4">
-          <span className="flex items-center gap-1">
-            <span
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: PORTFOLIO_COLOR }}
-            />
-            <span className="text-gray-600">포트폴리오</span>
+      <div className="space-y-1.5">
+        <div className="flex justify-between items-center gap-6">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-0.5 rounded" style={{ backgroundColor: PORTFOLIO_COLOR }} />
+            <span className="text-slate-400 text-xs font-mono">PORTFOLIO</span>
           </span>
-          <span className="font-medium text-blue-600">
+          <span className="font-mono font-bold text-emerald-400">
             {viewMode === 'absolute'
               ? formatCurrency(data.포트폴리오)
               : formatReturnValue(data.portfolioReturn)}
@@ -145,16 +141,16 @@ function CustomTooltip({
 
           return (
             <div key={benchmark}>
-              <div className="flex justify-between items-center gap-4">
-                <span className="flex items-center gap-1">
+              <div className="flex justify-between items-center gap-6">
+                <span className="flex items-center gap-1.5">
                   <span
-                    className="w-3 h-3 rounded-full"
+                    className="w-2.5 h-0.5 rounded"
                     style={{ backgroundColor: BENCHMARK_CONFIG[benchmark].color }}
                   />
-                  <span className="text-gray-600">{benchmark}</span>
+                  <span className="text-slate-400 text-xs font-mono">{benchmark}</span>
                 </span>
                 <span
-                  className="font-medium"
+                  className="font-mono font-bold"
                   style={{ color: BENCHMARK_CONFIG[benchmark].color }}
                 >
                   {viewMode === 'absolute'
@@ -164,10 +160,10 @@ function CustomTooltip({
               </div>
               {excessReturn !== undefined && (
                 <div
-                  className={`text-xs ml-4 ${isUnderperforming ? 'text-red-500' : 'text-green-500'}`}
+                  className={`text-xs ml-4 font-mono ${isUnderperforming ? 'text-red-400' : 'text-emerald-400'}`}
                 >
-                  {isUnderperforming ? '▼ ' : '▲ '}
-                  {benchmark} 대비 {formatReturnValue(excessReturn)}
+                  {isUnderperforming ? '- ' : '+ '}
+                  vs {benchmark}: {formatReturnValue(excessReturn)}
                 </div>
               )}
             </div>
@@ -199,7 +195,6 @@ export function PerformanceChart({
     );
   };
 
-  // 차트 데이터 생성
   const { chartData, underperformanceRanges, relativeChartData } =
     useMemo(() => {
       const portfolioReturns = calculateReturns(result.portfolio_values);
@@ -243,7 +238,6 @@ export function PerformanceChart({
         return point;
       });
 
-      // 상대 성과 차트 데이터 (매월 첫 데이터만)
       const relativeData: Array<{
         date: string;
         excessQQQ?: number;
@@ -270,7 +264,6 @@ export function PerformanceChart({
       };
     }, [result, selectedBenchmarks]);
 
-  // 메인 차트의 Y축 데이터 키와 포맷 결정
   const yAxisConfig = useMemo(() => {
     if (viewMode === 'absolute') {
       return {
@@ -295,7 +288,6 @@ export function PerformanceChart({
     }
   }, [viewMode]);
 
-  // Underperformance 영역 렌더링을 위한 데이터 생성
   const underperformanceAreas = useMemo(() => {
     const areas: Array<{
       benchmark: BenchmarkType;
@@ -319,7 +311,6 @@ export function PerformanceChart({
     return areas;
   }, [selectedBenchmarks, underperformanceRanges, chartData]);
 
-  // 줌 데이터 계산
   const { displayData, isZoomed, zoomPercentage } = useMemo(() => {
     const total = chartData.length;
     if (total === 0) {
@@ -337,12 +328,10 @@ export function PerformanceChart({
     };
   }, [chartData, zoomState]);
 
-  // 줌 리셋
   const resetZoom = useCallback(() => {
     setZoomState({ startIndex: 0, endIndex: -1 });
   }, []);
 
-  // 휠 이벤트 핸들러
   const handleWheel = useCallback(
     (e: WheelEvent) => {
       e.preventDefault();
@@ -364,13 +353,11 @@ export function PerformanceChart({
       let newEnd = end;
 
       if (zoomIn && range > ZOOM_CONFIG.MIN_VISIBLE_POINTS) {
-        // 확대
         const leftShrink = Math.floor(amount * relativePos);
         const rightShrink = amount - leftShrink;
         newStart = Math.min(start + leftShrink, end - ZOOM_CONFIG.MIN_VISIBLE_POINTS + 1);
         newEnd = Math.max(end - rightShrink, newStart + ZOOM_CONFIG.MIN_VISIBLE_POINTS - 1);
       } else if (!zoomIn && range < total) {
-        // 축소
         const leftExpand = Math.floor(amount * relativePos);
         const rightExpand = amount - leftExpand;
         newStart = Math.max(0, start - leftExpand);
@@ -382,13 +369,11 @@ export function PerformanceChart({
     [chartData.length, zoomState]
   );
 
-  // throttle된 휠 핸들러
   const throttledHandleWheel = useMemo(
     () => throttle(handleWheel, ZOOM_CONFIG.THROTTLE_MS),
     [handleWheel]
   );
 
-  // 휠 이벤트 리스너 등록
   useEffect(() => {
     const container = chartContainerRef.current;
     if (!container) return;
@@ -396,57 +381,55 @@ export function PerformanceChart({
     return () => container.removeEventListener('wheel', throttledHandleWheel);
   }, [throttledHandleWheel]);
 
-  // 데이터 변경 시 줌 리셋
   useEffect(() => {
     resetZoom();
   }, [result, resetZoom]);
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-6">
+    <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-5">
       {/* 헤더 */}
       <div className="flex flex-wrap justify-between items-center mb-4 gap-3">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-gray-800">성과 차트</h2>
-          {/* 줌 상태 표시 */}
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider font-mono">Performance</h2>
+          </div>
           {isZoomed && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">{zoomPercentage}% 표시</span>
+              <span className="text-xs text-slate-500 font-mono">{zoomPercentage}%</span>
               <button
                 onClick={resetZoom}
-                className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 rounded border border-gray-300 transition-colors flex items-center gap-1"
-                title="전체 보기"
+                className="px-2 py-0.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-400 rounded border border-slate-600/50 transition-colors font-mono"
+                title="Reset zoom"
               >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                리셋
+                RESET
               </button>
             </div>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2 items-center">
+        <div className="flex flex-wrap gap-1.5 items-center">
           {/* 뷰 모드 전환 */}
-          <div className="flex rounded-lg overflow-hidden border border-gray-300">
+          <div className="flex rounded overflow-hidden border border-slate-600/50">
             <button
               onClick={() => setViewMode('absolute')}
-              className={`px-3 py-1.5 text-sm transition-all ${
+              className={`px-3 py-1 text-xs font-mono transition-all ${
                 viewMode === 'absolute'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-white text-gray-600 hover:bg-gray-100'
+                  ? 'bg-cyan-500/20 text-cyan-400'
+                  : 'bg-[#0a0e17] text-slate-500 hover:text-slate-400'
               }`}
             >
-              금액
+              $
             </button>
             <button
               onClick={() => setViewMode('returns')}
-              className={`px-3 py-1.5 text-sm transition-all ${
+              className={`px-3 py-1 text-xs font-mono transition-all ${
                 viewMode === 'returns'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-white text-gray-600 hover:bg-gray-100'
+                  ? 'bg-cyan-500/20 text-cyan-400'
+                  : 'bg-[#0a0e17] text-slate-500 hover:text-slate-400'
               }`}
             >
-              수익률 %
+              %
             </button>
           </div>
 
@@ -456,17 +439,20 @@ export function PerformanceChart({
               <button
                 key={benchmark}
                 onClick={() => toggleBenchmark(benchmark)}
-                className={`px-3 py-1.5 text-sm rounded-lg border-2 transition-all ${
+                className={`px-2.5 py-1 text-xs rounded border font-mono transition-all ${
                   selectedBenchmarks.includes(benchmark)
-                    ? 'border-current font-semibold'
-                    : 'border-gray-300 text-gray-400'
+                    ? 'font-bold'
+                    : 'border-slate-700 text-slate-600 hover:border-slate-500'
                 }`}
                 style={{
                   color: selectedBenchmarks.includes(benchmark)
                     ? BENCHMARK_CONFIG[benchmark].color
                     : undefined,
                   borderColor: selectedBenchmarks.includes(benchmark)
-                    ? BENCHMARK_CONFIG[benchmark].color
+                    ? BENCHMARK_CONFIG[benchmark].color + '80'
+                    : undefined,
+                  backgroundColor: selectedBenchmarks.includes(benchmark)
+                    ? BENCHMARK_CONFIG[benchmark].color + '15'
                     : undefined,
                 }}
               >
@@ -487,7 +473,7 @@ export function PerformanceChart({
             return (
               <div
                 key={benchmark}
-                className="flex items-center gap-1 px-2 py-1 rounded"
+                className="flex items-center gap-1 px-2 py-1 rounded font-mono"
                 style={{
                   backgroundColor: BENCHMARK_CONFIG[benchmark].areaColor,
                 }}
@@ -497,7 +483,7 @@ export function PerformanceChart({
                   style={{ backgroundColor: BENCHMARK_CONFIG[benchmark].color }}
                 />
                 <span style={{ color: BENCHMARK_CONFIG[benchmark].color }}>
-                  {benchmark} 대비 저조 구간: {count}개
+                  Underperform {benchmark}: {count}
                 </span>
               </div>
             );
@@ -509,7 +495,7 @@ export function PerformanceChart({
       <div
         ref={chartContainerRef}
         className="h-80"
-        title={isZoomed ? '휠: 확대/축소' : '마우스 휠로 확대/축소'}
+        title={isZoomed ? 'Scroll: zoom' : 'Mouse wheel to zoom'}
       >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
@@ -529,29 +515,31 @@ export function PerformanceChart({
                   <stop
                     offset="0%"
                     stopColor={BENCHMARK_CONFIG[benchmark].color}
-                    stopOpacity={0.3}
+                    stopOpacity={0.2}
                   />
                   <stop
                     offset="100%"
                     stopColor={BENCHMARK_CONFIG[benchmark].color}
-                    stopOpacity={0.05}
+                    stopOpacity={0.02}
                   />
                 </linearGradient>
               ))}
             </defs>
 
-            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
 
             <XAxis
               dataKey="date"
               tickFormatter={formatDate}
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 10, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
+              stroke="#1e293b"
               interval="preserveStartEnd"
             />
 
             <YAxis
               tickFormatter={yAxisConfig.formatter}
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 10, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
+              stroke="#1e293b"
               width={60}
             />
 
@@ -567,24 +555,23 @@ export function PerformanceChart({
             <Legend
               formatter={(value) => {
                 if (value === '포트폴리오' || value === 'portfolioReturn')
-                  return '포트폴리오';
+                  return 'PORTFOLIO';
                 if (value === 'QQQ' || value === 'QQQReturn') return 'QQQ';
                 if (value === 'SPY' || value === 'SPYReturn') return 'SPY';
                 return value;
               }}
+              wrapperStyle={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px' }}
             />
 
-            {/* 수익률 모드에서 0% 기준선 */}
             {viewMode === 'returns' && (
               <ReferenceLine
                 y={0}
-                stroke="#666"
+                stroke="#475569"
                 strokeDasharray="3 3"
                 strokeWidth={1}
               />
             )}
 
-            {/* Underperformance 영역 - Area로 표시 */}
             {selectedBenchmarks.map((benchmark) => {
               const underperformKey =
                 `excessReturn${benchmark}` as keyof ChartDataPoint;
@@ -610,26 +597,24 @@ export function PerformanceChart({
               );
             })}
 
-            {/* 포트폴리오 라인 */}
             <Line
               type="monotone"
               dataKey={yAxisConfig.dataKeys.portfolio}
               stroke={PORTFOLIO_COLOR}
-              strokeWidth={2.5}
+              strokeWidth={2}
               dot={false}
               name="포트폴리오"
             />
 
-            {/* 벤치마크 라인 */}
             {selectedBenchmarks.includes('QQQ') && (
               <Line
                 type="monotone"
                 dataKey={yAxisConfig.dataKeys.QQQ}
                 stroke={BENCHMARK_CONFIG.QQQ.color}
-                strokeWidth={2}
+                strokeWidth={1.5}
                 dot={false}
                 name="QQQ"
-                strokeDasharray="5 5"
+                strokeDasharray="4 4"
               />
             )}
 
@@ -638,36 +623,35 @@ export function PerformanceChart({
                 type="monotone"
                 dataKey={yAxisConfig.dataKeys.SPY}
                 stroke={BENCHMARK_CONFIG.SPY.color}
-                strokeWidth={2}
+                strokeWidth={1.5}
                 dot={false}
                 name="SPY"
-                strokeDasharray="5 5"
+                strokeDasharray="4 4"
               />
             )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
 
-      {/* 줌 힌트 */}
       {!isZoomed && (
-        <p className="text-xs text-gray-400 text-center mt-1">
-          마우스 휠로 확대/축소
+        <p className="text-xs text-slate-600 text-center mt-1 font-mono">
+          scroll to zoom
         </p>
       )}
 
       {/* 상대 성과 차트 토글 */}
       {selectedBenchmarks.length > 0 && (
-        <div className="mt-4 border-t pt-4">
+        <div className="mt-4 border-t border-slate-700/30 pt-4">
           <button
             onClick={() => setShowRelativeChart(!showRelativeChart)}
-            className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600 transition-colors"
+            className="flex items-center gap-2 text-xs text-slate-500 hover:text-cyan-400 transition-colors font-mono"
           >
             <span
               className={`transform transition-transform ${showRelativeChart ? 'rotate-90' : ''}`}
             >
               ▶
             </span>
-            상대 성과 차트 (초과/미달 수익률)
+            RELATIVE PERFORMANCE (EXCESS/SHORTFALL)
           </button>
 
           {showRelativeChart && (
@@ -677,30 +661,40 @@ export function PerformanceChart({
                   data={relativeChartData}
                   margin={{ top: 10, right: 30, left: 20, bottom: 5 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
 
                   <XAxis
                     dataKey="date"
                     tickFormatter={formatDate}
-                    tick={{ fontSize: 10 }}
+                    tick={{ fontSize: 9, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
+                    stroke="#1e293b"
                     interval="preserveStartEnd"
                   />
 
                   <YAxis
                     tickFormatter={(v) => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`}
-                    tick={{ fontSize: 10 }}
+                    tick={{ fontSize: 9, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
+                    stroke="#1e293b"
                     width={50}
                   />
 
                   <Tooltip
                     formatter={(value: number, name: string) => [
                       formatReturnValue(value),
-                      name === 'excessQQQ' ? 'QQQ 대비' : 'SPY 대비',
+                      name === 'excessQQQ' ? 'vs QQQ' : 'vs SPY',
                     ]}
-                    labelFormatter={(label) => `날짜: ${label}`}
+                    labelFormatter={(label) => label}
+                    contentStyle={{
+                      backgroundColor: '#1a1f2e',
+                      border: '1px solid rgba(100, 116, 139, 0.3)',
+                      borderRadius: '4px',
+                      fontFamily: 'JetBrains Mono, monospace',
+                      fontSize: '11px',
+                      color: '#e2e8f0',
+                    }}
                   />
 
-                  <ReferenceLine y={0} stroke="#666" strokeWidth={1} />
+                  <ReferenceLine y={0} stroke="#475569" strokeWidth={1} />
 
                   {selectedBenchmarks.includes('QQQ') && (
                     <Bar
@@ -722,12 +716,12 @@ export function PerformanceChart({
                 </ComposedChart>
               </ResponsiveContainer>
 
-              <div className="flex justify-center gap-6 text-xs text-gray-500 mt-2">
+              <div className="flex justify-center gap-6 text-xs text-slate-600 mt-2 font-mono">
                 <span>
-                  ▲ 양수 = 벤치마크 대비 <span className="text-green-600 font-medium">초과 성과</span>
+                  + <span className="text-emerald-400">OUTPERFORM</span>
                 </span>
                 <span>
-                  ▼ 음수 = 벤치마크 대비 <span className="text-red-600 font-medium">저조한 성과</span>
+                  - <span className="text-red-400">UNDERPERFORM</span>
                 </span>
               </div>
             </div>

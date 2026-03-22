@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import etf, backtest
+from .routers import etf, backtest, macro
 
 # Vercel 서버리스 환경 체크
 IS_VERCEL = os.getenv("VERCEL") is not None
@@ -66,6 +66,7 @@ app.add_middleware(
 # 라우터 등록
 app.include_router(etf.router)
 app.include_router(backtest.router)
+app.include_router(macro.router)
 
 
 @app.get("/")
