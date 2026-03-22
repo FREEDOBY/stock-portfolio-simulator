@@ -97,8 +97,8 @@ class MacroDataFetcher:
         yahoo_configs = [
             ("nasdaq_weekly", "^IXIC", "1wk", "max"),
             ("nasdaq_daily", "^IXIC", "1d", "1y"),
-            ("vix", "^VIX", "1d", "2y"),
-            ("dxy", "DX-Y.NYB", "1d", "2y"),
+            ("vix", "^VIX", "1d", "10y"),
+            ("dxy", "DX-Y.NYB", "1d", "10y"),
         ]
 
         for key, ticker, interval, period in yahoo_configs:

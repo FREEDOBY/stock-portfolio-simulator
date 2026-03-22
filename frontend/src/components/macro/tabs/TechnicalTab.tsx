@@ -21,7 +21,7 @@ export function TechnicalTab({ data }: Props) {
   // 나스닥 + SMA 합치기 (최근 260주 = 5년)
   const sma200Map = new Map(sma200Data.map((d) => [d.date, d.value]));
   const sma50Map = new Map(sma50Data.map((d) => [d.date, d.value]));
-  const priceChart = nasdaqWeekly.slice(-260).map((d) => ({
+  const priceChart = nasdaqWeekly.map((d) => ({
     date: d.date.substring(0, 10),
     NASDAQ: d.value,
     'SMA200': sma200Map.get(d.date) || null,
@@ -32,7 +32,7 @@ export function TechnicalTab({ data }: Props) {
   const macdLineData = macdData?.line || [];
   const macdSignalMap = new Map((macdData?.signal || []).map((d) => [d.date, d.value]));
   const macdHistMap = new Map((macdData?.histogram || []).map((d) => [d.date, d.value]));
-  const macdChart = macdLineData.slice(-260).map((d) => ({
+  const macdChart = macdLineData.map((d) => ({
     date: d.date.substring(0, 10),
     MACD: d.value,
     Signal: macdSignalMap.get(d.date) || null,
@@ -40,7 +40,7 @@ export function TechnicalTab({ data }: Props) {
   }));
 
   // RSI
-  const rsiChart = rsiData.slice(-260).map((d) => ({
+  const rsiChart = rsiData.map((d) => ({
     date: d.date.substring(0, 10),
     RSI: d.value,
   }));
@@ -63,7 +63,10 @@ export function TechnicalTab({ data }: Props) {
   return (
     <div className="space-y-4">
       {/* 나스닥 + SMA */}
-      <TabChartSection title="NASDAQ Composite + 200W / 50W SMA">
+      <TabChartSection
+        title="NASDAQ Composite + 200W / 50W SMA"
+        description={"나스닥 종합지수 + 이동평균선\n• 200주선(빨강): 장기 추세 지표, 하회 시 약세장\n• 50주선(노랑): 중기 추세 지표\n• 골든크로스: 50주선이 200주선 상향 돌파 → 강세\n• 데드크로스: 50주선이 200주선 하향 돌파 → 약세\n• 200주선 접근 시 매수 시그널 발동"}
+      >
         <MacroLineChart
           data={priceChart}
           series={[
@@ -76,7 +79,10 @@ export function TechnicalTab({ data }: Props) {
       </TabChartSection>
 
       {/* MACD */}
-      <TabChartSection title="Weekly MACD (12, 26, 9)">
+      <TabChartSection
+        title="Weekly MACD (12, 26, 9)"
+        description={"MACD (Moving Average Convergence Divergence)\n• MACD선: EMA(12주) - EMA(26주)\n• 시그널선: MACD의 EMA(9주)\n• 히스토그램: MACD - 시그널\n• MACD > 시그널: 상승 모멘텀\n• 3쌍봉 하락다이버전스: 주가↑ MACD↓ → 매도 경고\n• 쌍바닥 상승다이버전스: 주가↓ MACD↑ → 매수 신호"}
+      >
         <MacroLineChart
           data={macdChart}
           series={[
@@ -91,7 +97,10 @@ export function TechnicalTab({ data }: Props) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* RSI */}
-        <TabChartSection title="Weekly RSI (14)">
+        <TabChartSection
+          title="Weekly RSI (14)"
+          description={"RSI (Relative Strength Index, 14주)\n• 0~100 범위, 상승/하락 강도 측정\n• 70 이상: 과매수 → 조정 가능성\n• 30 이하: 과매도 → 반등 가능성\n• 25 이하: 극과매도 → 매수 시그널\n• 다이버전스 감지 시 추세 전환 신호"}
+        >
           <MacroLineChart
             data={rsiChart}
             series={[{ dataKey: 'RSI', color: '#a78bfa', name: 'RSI' }]}

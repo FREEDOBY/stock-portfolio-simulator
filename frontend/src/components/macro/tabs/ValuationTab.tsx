@@ -35,7 +35,10 @@ export function ValuationTab({ data }: Props) {
   return (
     <div className="space-y-4">
       {/* CPI + Core PCE */}
-      <TabChartSection title="CPI YoY% + Core PCE YoY%">
+      <TabChartSection
+        title="CPI YoY% + Core PCE YoY%"
+        description={"CPI (소비자물가지수): 전체 소비자 물가 변동\nCore PCE (개인소비지출): 연준이 선호하는 인플레 지표 (식품·에너지 제외)\n• 2% 이하: 인플레 안정 → 금리 인하 가능\n• 2~3%: 적정 범위\n• 3% 이상: 인플레 압력 → 금리 인상 압력\n• CPI와 PCE 괴리 확대 시 → 연준 정책 혼란"}
+      >
         <MacroLineChart
           data={inflationData}
           series={[
@@ -49,7 +52,10 @@ export function ValuationTab({ data }: Props) {
       </TabChartSection>
 
       {/* 버핏 지표 */}
-      <TabChartSection title="Buffett Indicator (Market Cap / GDP %)">
+      <TabChartSection
+        title="Buffett Indicator (Market Cap / GDP %)"
+        description={"버핏지표: 전체 주식 시가총액 ÷ GDP\n• 100% 이하: 저평가 → 매수 적기\n• 100~130%: 적정 가치\n• 130~160%: 고평가 → 주의\n• 160% 이상: 극심한 고평가 → 버블 경고\n• 워런 버핏이 '단일 최고의 밸류에이션 지표'로 언급"}
+      >
         <MacroLineChart
           data={buffettData}
           series={[{ dataKey: 'Buffett%', color: '#06b6d4', name: 'Buffett Indicator' }]}

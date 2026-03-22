@@ -9,14 +9,25 @@ interface SeriesConfig {
   name: string;
   type?: 'line' | 'area' | 'bar';
   strokeDasharray?: string;
+  yAxisId?: 'left' | 'right';  // 듀얼 Y축 지원
+}
+
+interface ReferenceLineConfig {
+  y: number;
+  color: string;
+  label?: string;
+  yAxisId?: 'left' | 'right';
 }
 
 interface Props {
   data: Array<Record<string, unknown>>;
   series: SeriesConfig[];
   height?: number;
-  referenceLines?: Array<{ y: number; color: string; label?: string }>;
+  referenceLines?: ReferenceLineConfig[];
   yAxisFormatter?: (v: number) => string;
+  rightYAxisFormatter?: (v: number) => string;
+  yDomain?: [number | 'auto', number | 'auto'];       // 왼쪽 Y축 범위
+  rightYDomain?: [number | 'auto', number | 'auto'];   // 오른쪽 Y축 범위
 }
 
 export function MacroLineChart({
@@ -25,6 +36,9 @@ export function MacroLineChart({
   height = 250,
   referenceLines = [],
   yAxisFormatter,
+  rightYAxisFormatter,
+  yDomain,
+  rightYDomain,
 }: Props) {
   if (!data || data.length === 0) {
     return (
@@ -34,10 +48,15 @@ export function MacroLineChart({
     );
   }
 
+  const hasRightAxis = series.some((s) => s.yAxisId === 'right');
+  // 오른쪽 축 시리즈의 색상을 Y축 라벨에 사용
+  const rightAxisColor = series.find((s) => s.yAxisId === 'right')?.color || '#64748b';
+  const leftAxisColor = series.find((s) => !s.yAxisId || s.yAxisId === 'left')?.color || '#64748b';
+
   return (
     <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+        <ComposedChart data={data} margin={{ top: 5, right: hasRightAxis ? 10 : 20, left: 10, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
           <XAxis
             dataKey="date"
@@ -45,12 +64,30 @@ export function MacroLineChart({
             stroke="#1e293b"
             interval="preserveStartEnd"
           />
+
+          {/* 왼쪽 Y축 */}
           <YAxis
-            tick={{ fontSize: 11, fill: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}
+            yAxisId="left"
+            tick={{ fontSize: 11, fill: leftAxisColor, fontFamily: 'JetBrains Mono, monospace' }}
             stroke="#1e293b"
             width={55}
             tickFormatter={yAxisFormatter}
+            domain={yDomain}
           />
+
+          {/* 오른쪽 Y축 (듀얼 모드에서만) */}
+          {hasRightAxis && (
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              tick={{ fontSize: 11, fill: rightAxisColor, fontFamily: 'JetBrains Mono, monospace' }}
+              stroke="#1e293b"
+              width={50}
+              tickFormatter={rightYAxisFormatter}
+              domain={rightYDomain}
+            />
+          )}
+
           <Tooltip
             contentStyle={{
               backgroundColor: '#1a1f2e',
@@ -67,6 +104,7 @@ export function MacroLineChart({
             <ReferenceLine
               key={i}
               y={ref.y}
+              yAxisId={ref.yAxisId || 'left'}
               stroke={ref.color}
               strokeDasharray="3 3"
               strokeWidth={1}
@@ -74,38 +112,49 @@ export function MacroLineChart({
             />
           ))}
 
-          {series.map((s) =>
-            s.type === 'area' ? (
-              <Area
-                key={s.dataKey}
-                type="monotone"
-                dataKey={s.dataKey}
-                fill={s.color + '20'}
-                stroke={s.color}
-                strokeWidth={1.5}
-                name={s.name}
-              />
-            ) : s.type === 'bar' ? (
-              <Bar
-                key={s.dataKey}
-                dataKey={s.dataKey}
-                fill={s.color}
-                opacity={0.7}
-                name={s.name}
-              />
-            ) : (
+          {series.map((s) => {
+            const axisId = s.yAxisId || 'left';
+
+            if (s.type === 'area') {
+              return (
+                <Area
+                  key={s.dataKey}
+                  type="monotone"
+                  dataKey={s.dataKey}
+                  yAxisId={axisId}
+                  fill={s.color + '20'}
+                  stroke={s.color}
+                  strokeWidth={1.5}
+                  name={s.name}
+                />
+              );
+            }
+            if (s.type === 'bar') {
+              return (
+                <Bar
+                  key={s.dataKey}
+                  dataKey={s.dataKey}
+                  yAxisId={axisId}
+                  fill={s.color}
+                  opacity={0.7}
+                  name={s.name}
+                />
+              );
+            }
+            return (
               <Line
                 key={s.dataKey}
                 type="monotone"
                 dataKey={s.dataKey}
+                yAxisId={axisId}
                 stroke={s.color}
                 strokeWidth={1.5}
                 dot={false}
                 name={s.name}
                 strokeDasharray={s.strokeDasharray}
               />
-            )
-          )}
+            );
+          })}
         </ComposedChart>
       </ResponsiveContainer>
     </div>
