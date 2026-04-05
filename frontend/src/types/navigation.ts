@@ -7,8 +7,6 @@ export interface MenuItem {
   icon: string; // SVG path data
   component: ComponentType<Record<string, unknown>>;
   description?: string;
-  badge?: string;
-  disabled?: boolean;
 }
 
 export interface SidebarProps {

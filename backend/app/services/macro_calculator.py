@@ -199,6 +199,148 @@ class MacroCalculator:
             return "falling"
         return None
 
+    # ─── 트렌드 판별 v2 (MA 교차 + 강도) ───
+
+    def trend_direction_v2(
+        self,
+        series: pd.Series,
+        lookback: int = 6,
+    ) -> tuple[Optional[str], float]:
+        """YoY% 변화율의 선형회귀 기울기로 트렌드 판별
+
+        @implements REQ-001, REQ-002
+        1. 원시 데이터 → YoY% 변환 (스케일 정규화 + 인플레이션 제거)
+        2. YoY%의 최근 lookback개월에 선형회귀
+        3. slope 부호 → rising/falling
+        4. R² → 추세 일관성 (strength)
+
+        Returns: ("rising"/"falling"/None, strength 0~1)
+        """
+        # YoY% 변환에 13개월 + lookback 필요
+        if len(series) < 13 + lookback:
+            return None, 0.0
+
+        yoy = self.yoy_percent(series)
+        yoy_valid = yoy.dropna().tail(lookback)
+
+        if len(yoy_valid) < 4:
+            return None, 0.0
+
+        # 선형회귀
+        x = np.arange(len(yoy_valid))
+        y = yoy_valid.values
+
+        slope, intercept = np.polyfit(x, y, 1)
+
+        # R² 계산 (추세 일관성)
+        predicted = slope * x + intercept
+        ss_res = np.sum((y - predicted) ** 2)
+        mean_y = np.mean(y)
+        ss_tot = np.sum((y - mean_y) ** 2)
+        r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+        r_squared = max(0.0, r_squared)  # 음수 방지
+
+        # slope 크기로 방향 판별 (YoY%p 단위)
+        # slope > 0: 증가율이 올라가는 중 (가속)
+        # slope < 0: 증가율이 꺾이는 중 (감속)
+        # |slope| < 0.1%p/월: 횡보로 간주
+        if abs(slope) < 0.1:
+            return None, r_squared
+
+        # strength = R² (추세가 일관적일수록 높음)
+        strength = r_squared
+
+        if slope > 0:
+            return "rising", strength
+        else:
+            return "falling", strength
+
+    def composite_trend_v2(
+        self,
+        series_list: list[tuple[pd.Series, float]],
+        lookback: int = 6,
+    ) -> tuple[Optional[str], float]:
+        """가중 강도 합산으로 복합 트렌드 판별
+
+        @implements REQ-003
+        각 지표의 (방향 × 강도 × 가중치)를 합산하여 최종 방향과 strength 반환
+
+        Returns: ("rising"/"falling"/None, strength 0~1)
+        """
+        score = 0.0
+        total_weight = 0.0
+
+        for series, weight in series_list:
+            if series is None or series.empty:
+                continue
+            direction, strength = self.trend_direction_v2(series, lookback=lookback)
+            if direction is None:
+                continue
+
+            sign = 1.0 if direction == "rising" else -1.0
+            score += sign * strength * weight
+            total_weight += weight
+
+        if total_weight == 0:
+            return None, 0.0
+
+        normalized = score / total_weight  # -1 ~ +1
+        final_strength = abs(normalized)
+
+        if final_strength < 0.15:
+            return None, final_strength
+
+        direction = "rising" if normalized > 0 else "falling"
+        return direction, final_strength
+
+    def oi_ratio_proxy(
+        self,
+        demand_series: pd.Series,
+        inventory_series: pd.Series,
+    ) -> Optional[float]:
+        """OI Ratio proxy = demand YoY% / inventory YoY%
+
+        @implements REQ-004
+        ISM OI Ratio 대체. DGORDER YoY / BUSINV YoY 비율.
+        > 1.0 = 수요 우위 (재고 보충 필요)
+        < 1.0 = 재고 과잉 (재고 축소 필요)
+
+        Returns: ratio or None (데이터 부족)
+        """
+        if len(demand_series) < 13 or len(inventory_series) < 13:
+            return None
+
+        demand_yoy = self.yoy_percent(demand_series)
+        inv_yoy = self.yoy_percent(inventory_series)
+
+        # 최근 유효값
+        d_valid = demand_yoy.dropna()
+        i_valid = inv_yoy.dropna()
+
+        if len(d_valid) == 0 or len(i_valid) == 0:
+            return None
+
+        d_last = float(d_valid.iloc[-1])
+        i_last = float(i_valid.iloc[-1])
+
+        if i_last == 0:
+            return None
+
+        # 부호 정규화: 양수 YoY끼리 비교해야 ratio 시맨틱 유지
+        # 둘 다 음수이면 부호가 상쇄되어 양수 ratio가 나오지만
+        # "더 빠르게 감소" = 수요 우위가 아님 → abs 비율 + 방향 보정
+        if d_last > 0 and i_last > 0:
+            return d_last / i_last
+        elif d_last < 0 and i_last < 0:
+            # 둘 다 감소 중: 수요 감소가 더 크면 재고 과잉
+            return abs(i_last) / abs(d_last)
+        elif d_last > 0 and i_last < 0:
+            # 수요 증가 + 재고 감소 → 강한 수요 우위
+            return abs(d_last / i_last) + 1.0
+        else:
+            # 수요 감소 + 재고 증가 → 강한 재고 과잉
+            return 1.0 / (abs(i_last / d_last) + 1.0)
+
 
 # 싱글톤
 macro_calculator = MacroCalculator()

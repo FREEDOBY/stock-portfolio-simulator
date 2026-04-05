@@ -51,10 +51,25 @@ export interface RecessionWarning {
   checks: RecessionCheck[];
 }
 
+export interface KostolanyData {
+  phase: 'A1' | 'A2' | 'A3' | 'B1' | 'B2' | 'B3';
+  name: string;
+  desc: string;
+  action: string;
+  color: string;
+  inputs: {
+    monetary: 'tight' | 'loose';
+    fed_rate: number | null;
+    vix: number | null;
+    sentiment: 'fear' | 'neutral' | 'greed';
+  };
+}
+
 export interface DashboardData {
   overall: OverallResult;
   categories: Record<string, CategorySummary>;
   recession_warning?: RecessionWarning;
+  kostolany?: KostolanyData;
 }
 
 export const WARNING_LEVEL_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {

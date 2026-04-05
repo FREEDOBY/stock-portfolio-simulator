@@ -76,7 +76,7 @@ class TestSignal3:
     # UT-009: REQ-003 - Phase4 적극적 재고감축
     def test_phase4_wait(self, engine):
         result = engine.signal_3_kitchen_cycle(pmi_trend="falling", inventory_trend="falling")
-        assert result.score == 0.0
+        assert result.score == -0.5  # base_score=-0.5 * default strength=1.0
 
     # UT-010: REQ-003 - 트렌드 None
     def test_none_trend(self, engine):

@@ -2,6 +2,8 @@
 
 interface Props {
   currentPhase: number; // 1~4
+  strength?: number;    // 0~1 확신도
+  transitioning?: boolean; // Phase 전환 중 여부
 }
 
 const PHASES = [
@@ -11,7 +13,7 @@ const PHASES = [
   { id: 4, label: 'Phase 4', desc: '적극적 재고감축', sub: '하락 후기', color: '#ef4444', angle: 225 },
 ];
 
-export function CycleDiagram({ currentPhase }: Props) {
+export function CycleDiagram({ currentPhase, strength, transitioning }: Props) {
   const radius = 80;
   const cx = 120;
   const cy = 120;
@@ -99,12 +101,30 @@ export function CycleDiagram({ currentPhase }: Props) {
       {/* 현재 Phase 설명 */}
       {PHASES.filter((p) => p.id === currentPhase).map((p) => (
         <div key={p.id} className="text-center mt-2">
-          <span className="text-sm font-bold font-mono" style={{ color: p.color }}>
-            {p.label}: {p.desc}
+          <span className="text-sm font-bold font-mono" style={{ color: transitioning ? '#64748b' : p.color }}>
+            {transitioning ? 'Transitioning' : `${p.label}: ${p.desc}`}
           </span>
           <span className="text-xs text-slate-500 font-mono ml-2">({p.sub})</span>
         </div>
       ))}
+      {/* 확신도 바 */}
+      {strength != null && (
+        <div className="mt-2 w-full max-w-[200px]">
+          <div className="flex justify-between text-xs font-mono text-slate-500 mb-1">
+            <span>확신도</span>
+            <span>{Math.round(strength * 100)}%</span>
+          </div>
+          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{
+                width: `${strength * 100}%`,
+                backgroundColor: strength > 0.6 ? '#10b981' : strength > 0.3 ? '#f59e0b' : '#ef4444',
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

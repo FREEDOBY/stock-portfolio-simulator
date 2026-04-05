@@ -1,6 +1,6 @@
 """매크로 통합 서비스 - 데이터 수집 → 지표 계산 → 시그널 판정 파이프라인"""
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import pandas as pd
@@ -17,6 +17,25 @@ logger = logging.getLogger(__name__)
 
 VALID_CATEGORIES = {"business_cycle", "liquidity", "sentiment", "valuation", "technical", "labor_household"}
 
+# 한국 표준시 (UTC+9)
+KST = timezone(timedelta(hours=9))
+
+
+def _get_reset_boundary() -> datetime:
+    """오늘(KST) 06:00 기준 리셋 경계를 반환. 현재가 06:00 이전이면 어제 06:00."""
+    now = datetime.now(KST)
+    today_reset = now.replace(hour=6, minute=0, second=0, microsecond=0)
+    if now < today_reset:
+        today_reset -= timedelta(days=1)
+    return today_reset
+
+
+def _is_cache_valid(cached_at: Optional[datetime]) -> bool:
+    """캐시가 KST 06:00 기준으로 아직 유효한지 확인"""
+    if cached_at is None:
+        return False
+    return cached_at >= _get_reset_boundary()
+
 
 class MacroService:
     """매크로 분석 통합 서비스"""
@@ -29,9 +48,18 @@ class MacroService:
         self._signal_history: list[dict] = []
         self._last_signals: dict[int, SignalStatus] = {}
         self.warning_engine: RecessionWarningEngine = recession_warning_engine
+        # KST 06:00 일간 캐시
+        self._dashboard_cache: Optional[dict] = None
+        self._dashboard_cached_at: Optional[datetime] = None
+        self._category_cache: dict[str, dict] = {}
+        self._category_cached_at: dict[str, datetime] = {}
 
     def get_dashboard(self) -> dict:
-        """대시보드 데이터: 종합 판정 + 카테고리 요약 + 시그널"""
+        """대시보드 데이터: 종합 판정 + 카테고리 요약 + 시그널 (KST 06:00 일간 캐시)"""
+        if _is_cache_valid(self._dashboard_cached_at) and self._dashboard_cache is not None:
+            logger.info("Dashboard cache hit (valid until next KST 06:00)")
+            return self._dashboard_cache
+
         raw = self.fetcher.fetch_all()
 
         # 파생 지표 계산
@@ -52,7 +80,10 @@ class MacroService:
         # 침체 경고 시스템
         recession_warning = self._evaluate_recession_warning(raw, indicators)
 
-        return {
+        # 코스톨라니 달걀모델
+        kostolany = self._kostolany_egg(raw, indicators)
+
+        result = {
             "overall": {
                 "score": score,
                 "verdict": verdict.value,
@@ -62,12 +93,28 @@ class MacroService:
             },
             "categories": categories,
             "recession_warning": recession_warning,
+            "kostolany": kostolany,
         }
 
+        # 캐시 저장
+        self._dashboard_cache = result
+        self._dashboard_cached_at = datetime.now(KST)
+        logger.info("Dashboard cached (valid until next KST 06:00)")
+
+        return result
+
     def get_category_detail(self, category: str) -> dict:
-        """카테고리별 상세 데이터 (차트용)"""
+        """카테고리별 상세 데이터 (차트용, KST 06:00 일간 캐시)"""
+        # 캐시 확인
+        if category in self._category_cache and _is_cache_valid(self._category_cached_at.get(category)):
+            logger.info("Category '%s' cache hit", category)
+            return self._category_cache[category]
+
         if category == "technical":
-            return self._get_technical_detail()
+            result = self._get_technical_detail()
+            self._category_cache[category] = result
+            self._category_cached_at[category] = datetime.now(KST)
+            return result
 
         series_data = self.fetcher.fetch_category(category)
         result = {sid: sd.model_dump() for sid, sd in series_data.items()}
@@ -84,6 +131,11 @@ class MacroService:
             result["DXY"] = {"series_id": "DXY", "name": "Dollar Index", "data": [
                 {"date": p.date, "value": p.value} for p in raw.dxy
             ], "status": "live"}
+
+        # 캐시 저장
+        self._category_cache[category] = result
+        self._category_cached_at[category] = datetime.now(KST)
+        logger.info("Category '%s' cached (valid until next KST 06:00)", category)
 
         return result
 
@@ -113,26 +165,22 @@ class MacroService:
             indicators["cli_acceleration"] = pd.Series([], dtype=float)
             indicators["cli_value"] = None
 
-        # 복합 선행지표 투표로 생산/수요 트렌드 판별
-        # (ISM PMI 대용 - NAPM은 FRED에서 Discontinued)
-        dgorder = self._series_to_pd(raw.fred_series.get("DGORDER"))
-        neworder = self._series_to_pd(raw.fred_series.get("NEWORDER"))
-        acdgno = self._series_to_pd(raw.fred_series.get("ACDGNO"))
+        # 키친사이클 핵심 2지표: IPMAN(수요/생산) + ISRATIO(재고)
         ipman = self._series_to_pd(raw.fred_series.get("IPMAN"))
-        permit = self._series_to_pd(raw.fred_series.get("PERMIT"))
+        if ipman is not None and not ipman.empty:
+            pmi_trend, pmi_strength = self.calc.trend_direction_v2(ipman)
+        else:
+            pmi_trend, pmi_strength = None, 0.0
+        indicators["pmi_trend"] = pmi_trend
+        indicators["pmi_strength"] = pmi_strength
 
-        composite_inputs = [
-            (dgorder, 2.0),    # 내구재 신규주문 (2~3개월 선행)
-            (neworder, 2.0),   # 제조업 신규주문 (1~2개월 선행)
-            (acdgno, 1.5),     # 자본재 주문 (3~6개월 선행)
-            (ipman, 1.0),      # 산업생산 (확인용, 후행)
-            (permit, 1.0),     # 건축허가 (6개월 선행)
-        ]
-        indicators["pmi_trend"] = self.calc.composite_trend(composite_inputs)
-
-        # 재고/출하비율 트렌드
         isratio_data = self._series_to_pd(raw.fred_series.get("ISRATIO"))
-        indicators["inventory_trend"] = self.calc.trend_direction(isratio_data) if isratio_data is not None and not isratio_data.empty else None
+        if isratio_data is not None and not isratio_data.empty:
+            inv_trend, inv_strength = self.calc.trend_direction_v2(isratio_data)
+        else:
+            inv_trend, inv_strength = None, 0.0
+        indicators["inventory_trend"] = inv_trend
+        indicators["inventory_strength"] = inv_strength
 
         # CLI 기반 큰 방향 (1차 판별)
         cli_val = indicators.get("cli_value")
@@ -217,6 +265,8 @@ class MacroService:
         s3 = self.engine.signal_3_kitchen_cycle(
             pmi_trend=indicators.get("pmi_trend"),
             inventory_trend=indicators.get("inventory_trend"),
+            pmi_strength=indicators.get("pmi_strength", 1.0),
+            inventory_strength=indicators.get("inventory_strength", 1.0),
         )
 
         # CLI 교차검증 6상태
@@ -327,6 +377,7 @@ class MacroService:
                     "cli_mom": cli_mom_val,
                     "cli_stage": indicators.get("cli_cycle_stage", "N/A"),
                     "demand_trend": indicators.get("pmi_trend", "N/A"),
+                    "strength": round((indicators.get("pmi_strength", 0) + indicators.get("inventory_strength", 0)) / 2, 2),
                 },
             },
             "liquidity": {
@@ -571,6 +622,78 @@ class MacroService:
 
         return "neutral"
 
+    # ─── 코스톨라니 달걀모델 ───
+
+    def _kostolany_egg(self, raw: MacroRawData, indicators: dict) -> dict:
+        """코스톨라니 달걀모델 위치 판정
+
+        축 1: 금리 방향 (FEDFUNDS 6개월 변화) → 인하=A국면, 인상=B국면
+        축 2: 심리 극단 (VIX) → 공포=비관, 낮음=낙관
+
+        ┌───────────────┬──────────┬──────────┬──────────┐
+        │               │ VIX 높음 │ VIX 보통 │ VIX 낮음 │
+        │ 금리 인하 중   │ A1 매집  │ A2 동행  │ A3 과열  │
+        │ 금리 인상 중   │ B3 과매도│ B2 동행↓ │ B1 분배  │
+        └───────────────┴──────────┴──────────┴──────────┘
+        """
+        # 축 1: 금리 수준 — Fed 중립금리(~2.5~3.0%) 기준
+        # >3.0% = 긴축 (유동성 제한), <3.0% = 완화 (유동성 확장)
+        fed_rate = indicators.get("fed_rate")
+        monetary = "tight"  # "tight", "loose"
+        if fed_rate is not None and fed_rate < 3.0:
+            monetary = "loose"
+
+        # 축 2: VIX 수준 — 역사적 백분위 기준 (1990~ 분포)
+        # >20 = 공포 (상위 25%), 14~20 = 중립 (중앙), <14 = 탐욕 (하위 25%)
+        vix = indicators.get("vix_value")
+        sentiment = "neutral"  # "fear", "neutral", "greed"
+        if vix is not None:
+            if vix > 20:
+                sentiment = "fear"
+            elif vix < 14:
+                sentiment = "greed"
+
+        # 6단계 매핑
+        phase_map = {
+            ("tight",  "fear"):    "B2",  # 긴축 + 공포 → 하락 동행
+            ("tight",  "neutral"): "B1",  # 긴축 + 중립 → 분배 (스마트머니 매도)
+            ("tight",  "greed"):   "A3",  # 긴축 + 탐욕 → 과열 (금리 높은데 낙관 = 위험)
+            ("loose",  "fear"):    "A1",  # 완화 + 공포 → 매집 (최적 매수)
+            ("loose",  "neutral"): "A2",  # 완화 + 중립 → 동행 (상승 중)
+            ("loose",  "greed"):   "A3",  # 완화 + 탐욕 → 과열 (버블)
+        }
+        phase = phase_map.get((monetary, sentiment), "A2")
+
+        phase_info = {
+            "A1": {"name": "매집", "desc": "바닥 근처. 확신파만 매수. 최적 매수 시점.",
+                    "action": "적극 매수", "color": "#10b981"},
+            "A2": {"name": "동행", "desc": "상승 중. 펀더멘탈 개선이 가격에 반영.",
+                    "action": "보유/매수", "color": "#06b6d4"},
+            "A3": {"name": "과열", "desc": "모두가 낙관. 부화뇌동파 대거 진입.",
+                    "action": "차익실현", "color": "#f59e0b"},
+            "B1": {"name": "분배", "desc": "고점. 확신파가 매도 시작.",
+                    "action": "매도", "color": "#f97316"},
+            "B2": {"name": "동행하락", "desc": "하락 지속. 부정적 뉴스 연속.",
+                    "action": "관망", "color": "#ef4444"},
+            "B3": {"name": "과매도", "desc": "극심한 비관. 투매. 바닥 근접.",
+                    "action": "관망/분할매수", "color": "#a78bfa"},
+        }
+
+        info = phase_info[phase]
+        return {
+            "phase": phase,
+            "name": info["name"],
+            "desc": info["desc"],
+            "action": info["action"],
+            "color": info["color"],
+            "inputs": {
+                "monetary": monetary,
+                "fed_rate": round(fed_rate, 2) if fed_rate is not None else None,
+                "vix": round(vix, 1) if vix is not None else None,
+                "sentiment": sentiment,
+            },
+        }
+
     # ─── 유틸 ───
 
     def _series_to_pd(self, series_data) -> Optional[pd.Series]:
@@ -594,6 +717,121 @@ class MacroService:
         if series_data is None or not series_data.data:
             return None
         return series_data.data[-1].value
+
+    def debug_kitchin_cycle(self) -> dict:
+        """키친사이클 디버그: 각 지표 트렌드 상세 출력"""
+        raw = self.fetcher.fetch_all()
+
+        # 수요 지표 개별 분석
+        demand_series = {
+            "DGORDER": self._series_to_pd(raw.fred_series.get("DGORDER")),
+            "NEWORDER": self._series_to_pd(raw.fred_series.get("NEWORDER")),
+            "ACDGNO": self._series_to_pd(raw.fred_series.get("ACDGNO")),
+            "IPMAN": self._series_to_pd(raw.fred_series.get("IPMAN")),
+            "PERMIT": self._series_to_pd(raw.fred_series.get("PERMIT")),
+        }
+
+        demand_details = {}
+        for name, s in demand_series.items():
+            if s is not None and not s.empty:
+                direction, strength = self.calc.trend_direction_v2(s)
+                yoy = self.calc.yoy_percent(s)
+                yoy_last6 = [round(float(v), 2) for v in yoy.dropna().tail(6).values]
+                # 기울기 계산
+                yoy_tail = yoy.dropna().tail(6)
+                slope = None
+                if len(yoy_tail) >= 4:
+                    x = np.arange(len(yoy_tail))
+                    slope = round(float(np.polyfit(x, yoy_tail.values, 1)[0]), 3)
+                demand_details[name] = {
+                    "direction": direction,
+                    "strength_r2": round(strength, 3),
+                    "yoy_last6": yoy_last6,
+                    "slope_per_month": slope,
+                    "data_points": len(s),
+                }
+            else:
+                demand_details[name] = {"direction": None, "error": "데이터 없음"}
+
+        # 복합 수요 트렌드
+        composite_inputs = [
+            (demand_series["DGORDER"], 2.0),
+            (demand_series["NEWORDER"], 2.0),
+            (demand_series["ACDGNO"], 1.5),
+            (demand_series["IPMAN"], 1.0),
+            (demand_series["PERMIT"], 1.0),
+        ]
+        valid_inputs = [(s, w) for s, w in composite_inputs if s is not None and not s.empty]
+        pmi_trend, pmi_str = self.calc.composite_trend_v2(valid_inputs)
+
+        # 재고 지표 개별 분석
+        isratio = self._series_to_pd(raw.fred_series.get("ISRATIO"))
+        businv = self._series_to_pd(raw.fred_series.get("BUSINV"))
+
+        inv_details = {}
+        for name, s in [("ISRATIO", isratio), ("BUSINV", businv)]:
+            if s is not None and not s.empty:
+                direction, strength = self.calc.trend_direction_v2(s)
+                yoy = self.calc.yoy_percent(s)
+                yoy_last6 = [round(float(v), 2) for v in yoy.dropna().tail(6).values]
+                yoy_tail = yoy.dropna().tail(6)
+                slope = None
+                if len(yoy_tail) >= 4:
+                    x = np.arange(len(yoy_tail))
+                    slope = round(float(np.polyfit(x, yoy_tail.values, 1)[0]), 3)
+                inv_details[name] = {
+                    "direction": direction,
+                    "strength_r2": round(strength, 3),
+                    "yoy_last6": yoy_last6,
+                    "slope_per_month": slope,
+                    "data_points": len(s),
+                }
+            else:
+                inv_details[name] = {"direction": None, "error": "데이터 없음"}
+
+        # 복합 재고 트렌드
+        inv_inputs = []
+        if isratio is not None and not isratio.empty:
+            inv_inputs.append((isratio, 1.5))
+        if businv is not None and not businv.empty:
+            inv_inputs.append((businv, 1.0))
+        inv_trend, inv_str = self.calc.composite_trend_v2(inv_inputs) if inv_inputs else (None, 0.0)
+
+        # OI Ratio
+        dgorder = demand_series.get("DGORDER")
+        oi_ratio = None
+        oi_debug = {}
+        if dgorder is not None and businv is not None and not dgorder.empty and not businv.empty:
+            d_yoy = self.calc.yoy_percent(dgorder)
+            i_yoy = self.calc.yoy_percent(businv)
+            d_last = float(d_yoy.dropna().iloc[-1]) if len(d_yoy.dropna()) > 0 else None
+            i_last = float(i_yoy.dropna().iloc[-1]) if len(i_yoy.dropna()) > 0 else None
+            oi_ratio = self.calc.oi_ratio_proxy(dgorder, businv)
+            oi_debug = {
+                "dgorder_yoy_pct": round(d_last, 2) if d_last else None,
+                "businv_yoy_pct": round(i_last, 2) if i_last else None,
+                "ratio": round(oi_ratio, 2) if oi_ratio else None,
+            }
+
+        # Phase 판정
+        phase = "N/A"
+        if pmi_trend == "rising" and inv_trend == "falling":
+            phase = "Phase 1: 상승 초기"
+        elif pmi_trend == "rising" and inv_trend == "rising":
+            phase = "Phase 2: 상승 중기"
+        elif pmi_trend == "falling" and inv_trend == "rising":
+            phase = "Phase 3: 하락 초기"
+        elif pmi_trend == "falling" and inv_trend == "falling":
+            phase = "Phase 4: 하락 후기"
+
+        return {
+            "판정": phase,
+            "수요_트렌드": {"direction": pmi_trend, "strength": round(pmi_str, 3)},
+            "재고_트렌드": {"direction": inv_trend, "strength": round(inv_str, 3)},
+            "수요_지표_상세": demand_details,
+            "재고_지표_상세": inv_details,
+            "oi_ratio": oi_debug,
+        }
 
     def _find_peaks(self, series: pd.Series, is_max: bool = True, window: int = 5) -> list[float]:
         """시계열에서 로컬 피크/저점 추출"""

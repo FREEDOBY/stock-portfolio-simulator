@@ -36,43 +36,24 @@ export function BusinessCycleTab({ data, crisisOverlays = [], signalMarkers = []
     '재고': data['AMTMNO']?.data?.[i]?.value,
   }));
 
-  // 키친사이클 Phase 추론 (복합 선행지표 투표 + ISRATIO)
+  // 키친사이클 Phase: IPMAN(수요) × ISRATIO(재고) 핵심 2지표
   let kitchenPhase = 0;
 
-  // 복합 트렌드: 여러 선행지표의 3개월MA 방향을 가중 투표
   const calcTrend = (seriesData: Array<{ date: string; value: number }> | undefined): number => {
-    if (!seriesData || seriesData.length < 7) return 0;
-    const recent = seriesData.slice(-7);
-    const maCurrent = (recent[6].value + recent[5].value + recent[4].value) / 3;
-    const maPast = (recent[3].value + recent[2].value + recent[1].value) / 3;
+    if (!seriesData || seriesData.length < 6) return 0;
+    const recent = seriesData.slice(-6);
+    const maCurrent = (recent[5].value + recent[4].value + recent[3].value) / 3;
+    const maPast = (recent[2].value + recent[1].value + recent[0].value) / 3;
     return maCurrent > maPast ? 1 : -1;
   };
 
-  const demandVotes = [
-    { trend: calcTrend(data['DGORDER']?.data), weight: 2.0 },   // 내구재
-    { trend: calcTrend(data['NEWORDER']?.data), weight: 2.0 },   // 제조업 주문
-    { trend: calcTrend(data['ACDGNO']?.data), weight: 1.5 },     // 자본재
-    { trend: calcTrend(data['IPMAN']?.data), weight: 1.0 },      // 산업생산
-    { trend: calcTrend(data['PERMIT']?.data), weight: 1.0 },     // 건축허가
-  ];
-  const risingWeight = demandVotes.filter(v => v.trend > 0).reduce((s, v) => s + v.weight, 0);
-  const fallingWeight = demandVotes.filter(v => v.trend < 0).reduce((s, v) => s + v.weight, 0);
-  const pmiRising = risingWeight > fallingWeight;
+  const pmiRising = calcTrend(data['IPMAN']?.data) > 0;
+  const invRising = calcTrend(data['ISRATIO']?.data) > 0;
 
-  // 재고 트렌드
-  const isratioData = data['ISRATIO']?.data || [];
-  let invRising = false;
-  if (isratioData.length >= 7) {
-    invRising = calcTrend(isratioData) > 0;
-  }
-
-  {
-
-    if (pmiRising && !invRising) kitchenPhase = 1;
-    else if (pmiRising && invRising) kitchenPhase = 2;
-    else if (!pmiRising && invRising) kitchenPhase = 3;
-    else if (!pmiRising && !invRising) kitchenPhase = 4;
-  }
+  if (pmiRising && !invRising) kitchenPhase = 1;
+  else if (pmiRising && invRising) kitchenPhase = 2;
+  else if (!pmiRising && invRising) kitchenPhase = 3;
+  else if (!pmiRising && !invRising) kitchenPhase = 4;
 
   return (
     <div className="space-y-4">

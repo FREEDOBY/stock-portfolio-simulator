@@ -51,6 +51,7 @@ FRED_SERIES_CONFIG = [
     {"id": "PERMIT", "name": "건축허가건수", "months": 360},
     {"id": "ACDGNO", "name": "자본재 신규주문 (방산제외)", "months": 360},
     {"id": "ISRATIO", "name": "총사업 재고/출하 비율", "months": 360},
+    {"id": "BUSINV", "name": "총사업 재고", "months": 360},
     {"id": "T10Y2Y", "name": "10Y-2Y 금리차", "months": 360},
     {"id": "FEDFUNDS", "name": "Fed 기준금리", "months": 360},
     {"id": "DGS10", "name": "국채 10년물", "months": 360},

@@ -10,7 +10,7 @@ const SIDEBAR_STORAGE_KEY = 'sidebar-collapsed';
  */
 export function Layout() {
   const [activeMenu, setActiveMenu] = useState(
-    () => menuItems.find((m) => !m.disabled)?.id ?? ''
+    () => menuItems[0]?.id ?? ''
   );
   const [collapsed, setCollapsed] = useState(() => {
     try {

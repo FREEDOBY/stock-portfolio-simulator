@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { fetchDashboard } from '../../api/macro';
 import { VerdictBanner } from './VerdictBanner';
 import { RecessionWarningBanner } from './RecessionWarningBanner';
+import { KostolanyEgg } from './charts/KostolanyEgg';
 import { CategoryCard } from './CategoryCard';
 import { SignalTable } from './SignalTable';
 import { SignalHistory } from './SignalHistory';
@@ -80,6 +81,9 @@ export function MacroDashboard({ onNavigateToDetail }: Props) {
           <RecessionWarningBanner warning={data.recession_warning} />
         )}
       </div>
+
+      {/* 코스톨라니 달걀모델 */}
+      {data.kostolany && <KostolanyEgg data={data.kostolany} />}
 
       {/* 카테고리 요약 카드 5개 */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">

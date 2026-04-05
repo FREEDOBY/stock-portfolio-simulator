@@ -30,7 +30,6 @@ const mockMenuItems: MenuItem[] = [
     shortLabel: 'MON',
     icon: 'M13 10V3L4 14h7v7l9-11h-7z',
     component: MockComponent,
-    badge: 'NEW',
   },
 ];
 
@@ -77,12 +76,11 @@ describe('UI Font Readability', () => {
       expect(brand.className).not.toContain('text-xs');
     });
 
-    // UT-004: 배지 text-[11px] (9px 아님)
-    it('should render badge with text-[11px] class', () => {
+    // UT-004: 메뉴 라벨에 uppercase 적용
+    it('should render menu labels with uppercase class', () => {
       render(<Sidebar {...sidebarProps} />);
-      const badge = screen.getByText('NEW');
-      expect(badge.className).toContain('text-[11px]');
-      expect(badge.className).not.toContain('text-[9px]');
+      const label = screen.getByText('Portfolio Simulator');
+      expect(label.className).toContain('uppercase');
     });
   });
 

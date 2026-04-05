@@ -43,3 +43,12 @@ async def get_signal_history():
 async def set_elliott(input: ElliottInput):
     """엘리엇 파동 수동 입력 (0~3)"""
     return macro_service.set_elliott_count(input.count)
+
+
+@router.get("/debug/kitchin")
+async def debug_kitchin():
+    """키친사이클 디버그 - 각 지표 트렌드 상세"""
+    try:
+        return macro_service.debug_kitchin_cycle()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Debug failed: {str(e)}")

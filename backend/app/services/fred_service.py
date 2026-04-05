@@ -2,42 +2,47 @@
 import logging
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 import httpx
 import pandas as pd
 from dateutil.relativedelta import relativedelta
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+# 한국 표준시 (UTC+9)
+KST = timezone(timedelta(hours=9))
+
+
+def _get_reset_boundary() -> datetime:
+    """오늘(KST) 06:00 기준 리셋 경계를 반환. 현재가 06:00 이전이면 어제 06:00."""
+    now = datetime.now(KST)
+    today_reset = now.replace(hour=6, minute=0, second=0, microsecond=0)
+    if now < today_reset:
+        today_reset -= timedelta(days=1)
+    return today_reset
+
 
 @dataclass
 class CachedData:
-    """캐시 데이터"""
+    """캐시 데이터 — KST 06:00 기준 일간 캐시"""
     data: pd.DataFrame
-    fetched_at: float
-    ttl: int = 3600  # 기본 1시간
+    fetched_at: datetime = field(default_factory=lambda: datetime.now(KST))
 
     @property
     def is_expired(self) -> bool:
-        return time.time() - self.fetched_at > self.ttl
+        return self.fetched_at < _get_reset_boundary()
 
 
 class FREDService:
-    """FRED API 클라이언트 + TTL 캐싱"""
+    """FRED API 클라이언트 + KST 06:00 일간 캐싱"""
 
     FRED_BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
-
-    # 갱신 주기별 TTL (초)
-    TTL_DAILY = 3600       # 1시간
-    TTL_WEEKLY = 3600 * 3  # 3시간
-    TTL_MONTHLY = 3600 * 6 # 6시간
-    TTL_QUARTERLY = 3600 * 12  # 12시간
 
     def __init__(self):
         self._api_key = os.getenv("FRED_API_KEY", "")
@@ -59,10 +64,7 @@ class FREDService:
         months_back: int = 24,
         ttl: Optional[int] = None,
     ) -> pd.DataFrame:
-        """단일 FRED 시리즈 수집 (캐싱 포함)"""
-        if ttl is None:
-            ttl = self.TTL_MONTHLY
-
+        """단일 FRED 시리즈 수집 (KST 06:00 일간 캐싱)"""
         # API 키 없으면 즉시 빈 DataFrame
         if not self._api_key:
             return pd.DataFrame(columns=["value"])
@@ -82,8 +84,6 @@ class FREDService:
             # 캐시 저장
             self._cache[cache_key] = CachedData(
                 data=df.copy(),
-                fetched_at=time.time(),
-                ttl=ttl,
             )
             return df
 

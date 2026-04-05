@@ -162,8 +162,11 @@ class SignalEngine:
         self,
         pmi_trend: Optional[str],
         inventory_trend: Optional[str],
+        pmi_strength: float = 1.0,
+        inventory_strength: float = 1.0,
     ) -> SignalResult:
-        """@implements REQ-003 - 키친사이클 4단계 판별"""
+        """@implements REQ-003 - 키친사이클 4단계 + 강도
+        IPMAN(수요) × ISRATIO(재고) → Phase 1~4"""
         if pmi_trend is None or inventory_trend is None:
             return SignalResult(
                 signal_id=3, name="키친사이클", score=0.0,
@@ -175,15 +178,22 @@ class SignalEngine:
             ("rising", "falling"): (1, 2.0, SignalStatus.BUY, "Phase 1: 수동적 재고축소 (상승 초기)"),
             ("rising", "rising"): (2, 1.0, SignalStatus.BUY, "Phase 2: 적극적 재고확충 (상승 중기)"),
             ("falling", "rising"): (3, -1.0, SignalStatus.SELL, "Phase 3: 수동적 재고축적 (하락 초기)"),
-            ("falling", "falling"): (4, 0.0, SignalStatus.WAIT, "Phase 4: 적극적 재고감축 (하락 후기)"),
+            ("falling", "falling"): (4, -0.5, SignalStatus.WAIT, "Phase 4: 적극적 재고감축 (하락 후기)"),
         }
 
         key = (pmi_trend, inventory_trend)
-        phase, score, status, reason = phase_map.get(key, (0, 0.0, SignalStatus.WAIT, "판별 불가"))
+        phase, base_score, status, reason = phase_map.get(key, (0, 0.0, SignalStatus.WAIT, "판별 불가"))
+
+        # 강도 반영 — 평균으로 score 조정 (한쪽 0이어도 다른 쪽 반영)
+        combined_strength = (pmi_strength + inventory_strength) / 2
+        adjusted_score = base_score * combined_strength
+
+        strength_pct = int(combined_strength * 100)
+        reason_with_strength = f"{reason} [확신도: {strength_pct}%]"
 
         return SignalResult(
-            signal_id=3, name="키친사이클", score=score,
-            weight=self.WEIGHTS[3], status=status, reason=reason,
+            signal_id=3, name="키친사이클", score=round(adjusted_score, 2),
+            weight=self.WEIGHTS[3], status=status, reason=reason_with_strength,
         )
 
     # ─── CLI 교차검증 ───

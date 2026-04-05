@@ -8,18 +8,66 @@ const api = axios.create({
   timeout: 60000, // 매크로 데이터는 시간이 걸릴 수 있음
 });
 
+/**
+ * KST 06:00 기준 일간 인메모리 캐시
+ * 백엔드도 동일 기준으로 캐시하지만, 프론트에서도 캐시하여
+ * 페이지 전환 시 불필요한 네트워크 요청을 제거
+ */
+interface CacheEntry<T> {
+  data: T;
+  cachedAt: number; // timestamp ms
+}
+
+const cache: {
+  dashboard: CacheEntry<DashboardData> | null;
+  categories: Record<string, CacheEntry<Record<string, unknown>>>;
+  signalHistory: CacheEntry<unknown[]> | null;
+} = {
+  dashboard: null,
+  categories: {},
+  signalHistory: null,
+};
+
+function getResetBoundary(): number {
+  const now = new Date();
+  // KST = UTC+9
+  const kstHour = (now.getUTCHours() + 9) % 24;
+  const kstDate = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const reset = new Date(kstDate);
+  reset.setUTCHours(6 - 9, 0, 0, 0); // 06:00 KST = 21:00 UTC (prev day)
+  if (kstHour < 6) {
+    reset.setUTCDate(reset.getUTCDate() - 1);
+  }
+  return reset.getTime();
+}
+
+function isCacheValid<T>(entry: CacheEntry<T> | null): entry is CacheEntry<T> {
+  if (!entry) return false;
+  return entry.cachedAt >= getResetBoundary();
+}
+
 export const fetchDashboard = async (): Promise<DashboardData> => {
+  if (isCacheValid(cache.dashboard)) return cache.dashboard.data;
+
   const response = await api.get('/macro/dashboard');
+  cache.dashboard = { data: response.data, cachedAt: Date.now() };
   return response.data;
 };
 
 export const fetchCategoryDetail = async (category: string): Promise<Record<string, unknown>> => {
+  const entry = cache.categories[category];
+  if (isCacheValid(entry)) return entry.data;
+
   const response = await api.get(`/macro/category/${category}`);
+  cache.categories[category] = { data: response.data, cachedAt: Date.now() };
   return response.data;
 };
 
 export const fetchSignalHistory = async () => {
+  if (isCacheValid(cache.signalHistory)) return cache.signalHistory.data;
+
   const response = await api.get('/macro/signals/history');
+  cache.signalHistory = { data: response.data, cachedAt: Date.now() };
   return response.data;
 };
 

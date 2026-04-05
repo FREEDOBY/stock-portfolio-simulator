@@ -22,8 +22,6 @@ const mockMenuItems: MenuItem[] = [
     shortLabel: 'MON',
     icon: 'M13 10V3L4 14h7v7l9-11h-7z',
     component: MockComponent,
-    disabled: true,
-    badge: 'SOON',
   },
 ];
 
@@ -67,7 +65,6 @@ describe('Sidebar', () => {
   it('should hide labels when collapsed', () => {
     render(<Sidebar {...defaultProps} collapsed={true} />);
     const label = screen.queryByText('Portfolio Simulator');
-    // 접힌 상태에서는 라벨이 보이지 않아야 함 (hidden or not rendered)
     expect(label).toBeNull();
   });
 
@@ -80,22 +77,7 @@ describe('Sidebar', () => {
     expect(onChange).toHaveBeenCalledWith('simulator');
   });
 
-  // UT-006: REQ-005 - disabled 메뉴 클릭 시 onMenuChange 미호출
-  it('should not call onMenuChange for disabled menu items', () => {
-    const onChange = vi.fn();
-    render(<Sidebar {...defaultProps} onMenuChange={onChange} />);
-    const disabledItem = screen.getByTestId('menu-item-monitor');
-    fireEvent.click(disabledItem);
-    expect(onChange).not.toHaveBeenCalled();
-  });
-
-  // UT-007: REQ-005 - 배지 표시
-  it('should display badge on menu items that have one', () => {
-    render(<Sidebar {...defaultProps} />);
-    expect(screen.getByText('SOON')).toBeInTheDocument();
-  });
-
-  // UT-008: REQ-009 - 다크 테마 클래스 적용
+  // UT-006: REQ-009 - 다크 테마 클래스 적용
   it('should apply dark theme classes', () => {
     render(<Sidebar {...defaultProps} />);
     const sidebar = screen.getByTestId('sidebar');

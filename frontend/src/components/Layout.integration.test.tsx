@@ -62,30 +62,24 @@ describe('Integration: Layout + Sidebar Navigation', () => {
   });
 
   // IT-003: 확장 가능한 구조 - 모든 메뉴 항목이 config에서 렌더링
-  it('should render all menu items from config including disabled ones', () => {
+  it('should render all menu items from config', () => {
     render(<Layout />);
 
-    expect(screen.getAllByTestId('menu-item-simulator').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByTestId('menu-item-macro-dashboard').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByTestId('menu-item-macro-detail').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByTestId('menu-item-settings').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByTestId('menu-item-simulator').length).toBeGreaterThanOrEqual(1);
   });
 
-  // IT-004: disabled 메뉴 클릭 시 콘텐츠가 변경되지 않음
-  it('should not switch content when disabled menu clicked', () => {
+  // IT-004: 메뉴 전환 동작
+  it('should switch content when menu clicked', () => {
     render(<Layout />);
 
-    // 초기: Portfolio Simulator 라벨이 표시됨
-    const initialLabels = screen.getAllByText('Portfolio Simulator');
-    expect(initialLabels.length).toBeGreaterThanOrEqual(1);
+    // macro-detail 클릭 → 전환됨
+    const detailItems = screen.getAllByTestId('menu-item-macro-detail');
+    fireEvent.click(detailItems[0]);
 
-    // disabled 메뉴 클릭
-    const disabledItems = screen.getAllByTestId('menu-item-macro-detail');
-    fireEvent.click(disabledItems[0]);
-
-    // 여전히 Portfolio Simulator 라벨이 표시됨 (변경 없음)
-    const afterLabels = screen.getAllByText('Portfolio Simulator');
-    expect(afterLabels.length).toBeGreaterThanOrEqual(1);
+    // 클릭 후 활성화 확인
+    expect(detailItems[0].className).toContain('cyan');
   });
 
   // IT-005: localStorage에서 사이드바 상태 복원

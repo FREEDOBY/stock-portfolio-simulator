@@ -39,23 +39,15 @@ export function Sidebar({
       <nav className="flex-1 py-2 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = activeMenu === item.id;
-          const isDisabled = item.disabled ?? false;
 
           return (
             <button
               key={item.id}
               data-testid={`menu-item-${item.id}`}
-              disabled={isDisabled}
-              onClick={() => {
-                if (!isDisabled) {
-                  onMenuChange(item.id);
-                }
-              }}
+              onClick={() => onMenuChange(item.id)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-all duration-200 relative group ${
                 isActive
                   ? 'bg-cyan-500/10 border-l-2 border-l-cyan-400 text-cyan-400'
-                  : isDisabled
-                  ? 'text-slate-700 cursor-not-allowed'
                   : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 border-l-2 border-l-transparent'
               }`}
               title={collapsed ? item.label : undefined}
@@ -77,23 +69,11 @@ export function Sidebar({
                 </svg>
               </div>
 
-              {/* Label & Badge - 펼침 모드에서만 표시 */}
+              {/* Label - 펼침 모드에서만 표시 */}
               {!collapsed && (
-                <div className="flex-1 min-w-0 flex items-center justify-between">
-                  <span className="text-sm font-mono uppercase tracking-wider">
-                    {item.label}
-                  </span>
-                  {item.badge && (
-                    <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 flex-shrink-0">
-                      {item.badge}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* 접힘 모드에서 배지 도트 */}
-              {collapsed && item.badge && (
-                <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-amber-400"></div>
+                <span className="text-sm font-mono uppercase tracking-wider">
+                  {item.label}
+                </span>
               )}
             </button>
           );
