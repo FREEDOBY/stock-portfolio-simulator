@@ -58,6 +58,8 @@ if os.getenv("VERCEL"):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
+    # Vercel 프론트엔드(프로덕션 + 프리뷰 배포) 도메인 자동 허용
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

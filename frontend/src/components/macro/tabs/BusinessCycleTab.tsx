@@ -10,7 +10,7 @@ interface Props {
   signalMarkers?: SignalMarker[];
 }
 
-export function BusinessCycleTab({ data, crisisOverlays = [], signalMarkers = [] }: Props) {
+export function BusinessCycleTab({ data, crisisOverlays = [] }: Props) {
   const toChartData = (seriesId: string) => {
     const raw = data[seriesId]?.data || [];
     // 일별 데이터 → 월별 마지막 값만 (중복 제거)

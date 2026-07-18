@@ -1,0 +1,19 @@
+# Render Blueprint — FastAPI 백엔드 (무료 플랜)
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: stock-portfolio-simulator-api
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      # numpy/pandas/pykrx 휠 호환성을 위해 3.12 고정
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      # Vercel 프론트엔드 프로덕션 도메인 (배포 후 대시보드에서 실제 값 입력)
+      # 예: https://stock-portfolio-simulator.vercel.app
+      - key: FRONTEND_URL
+        sync: false
