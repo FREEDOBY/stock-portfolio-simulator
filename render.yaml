@@ -14,6 +14,10 @@ services:
       - key: PYTHON_VERSION
         value: "3.12.8"
       # Vercel 프론트엔드 프로덕션 도메인 (배포 후 대시보드에서 실제 값 입력)
-      # 예: https://stock-portfolio-simulator.vercel.app
+      # 예: https://stock-portfolio-simulator-six.vercel.app
       - key: FRONTEND_URL
+        sync: false
+      # FRED API 키 — 없으면 경제(FRED) 데이터가 "데이터 부족"으로 나옴
+      # 로컬 .env의 FRED_API_KEY 값을 대시보드에서 입력 (git에 올리지 말 것)
+      - key: FRED_API_KEY
         sync: false
