@@ -6,4 +6,5 @@ numpy>=1.26.0
 pydantic>=2.5.0
 python-dateutil>=2.8.2
 python-dotenv>=1.0.0
+httpx>=0.25.0
 pykrx>=1.0.51
