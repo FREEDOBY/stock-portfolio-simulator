@@ -129,12 +129,17 @@ export function SemiconductorRegime({ data }: Props) {
         {/* 빅테크 캐펙스 분기 추이 */}
         {data.capex_series && data.capex_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-            <div className="text-xs font-mono text-slate-500 mb-1">빅테크 캐펙스 분기 ($B)</div>
+            <div className="text-xs font-mono text-slate-500 mb-1">빅테크 캐펙스 분기 ($B · QoQ %)</div>
             <MacroLineChart
               data={data.capex_series}
-              series={[{ dataKey: 'value', color: '#10b981', name: '캐펙스', type: 'bar' }]}
+              series={[
+                { dataKey: 'value', color: '#10b981', name: '캐펙스', type: 'bar' },
+                { dataKey: 'qoq', color: '#f59e0b', name: 'QoQ %', yAxisId: 'right', dot: true },
+              ]}
               height={220}
               yAxisFormatter={(v) => `$${v}B`}
+              rightYAxisFormatter={(v) => `${v.toFixed(0)}%`}
+              referenceLines={[{ y: 0, color: '#64748b', yAxisId: 'right' }]}
             />
           </div>
         )}
@@ -142,12 +147,66 @@ export function SemiconductorRegime({ data }: Props) {
         {/* D램 DDR4 가격 추이 (컨트랙트 → 스팟) */}
         {data.ddr4_series && data.ddr4_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-            <div className="text-xs font-mono text-slate-500 mb-1">D램 DDR4 8Gb 가격 ($ · 컨트랙트→스팟)</div>
+            <div className="text-xs font-mono text-slate-500 mb-1">D램 DDR4 8Gb 가격 ($ · 컨트랙트→스팟 · 전기 대비 %)</div>
             <MacroLineChart
               data={data.ddr4_series}
-              series={[{ dataKey: 'value', color: '#f43f5e', name: 'DDR4 $', type: 'area' }]}
+              series={[
+                { dataKey: 'value', color: '#f43f5e', name: 'DDR4 $', type: 'area', dot: true },
+                { dataKey: 'qoq', color: '#f59e0b', name: '전기 대비 %', type: 'bar', yAxisId: 'right', barSize: 28 },
+              ]}
               height={220}
               yAxisFormatter={(v) => `$${v}`}
+              rightYAxisFormatter={(v) => `${v.toFixed(0)}%`}
+              referenceLines={[{ y: 0, color: '#64748b', yAxisId: 'right' }]}
+            />
+          </div>
+        )}
+
+        {/* IC 수출물가지수 (ECOS · D램 컨트랙트 프록시) */}
+        {data.ecos_series && data.ecos_series.length > 0 && (
+          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
+            <div className="text-xs font-mono text-slate-500 mb-1">집적회로 수출물가지수 (달러 · 2020=100 · 한국은행)</div>
+            <MacroLineChart
+              data={data.ecos_series}
+              series={[{ dataKey: 'value', color: '#a78bfa', name: 'IC 수출물가', type: 'area' }]}
+              height={220}
+              yAxisFormatter={(v) => `${v.toFixed(0)}`}
+              yDomain={['auto', 'auto']}
+            />
+          </div>
+        )}
+
+        {/* TSMC 월매출 (AI 생산 최상류) */}
+        {data.tsmc_series && data.tsmc_series.length > 0 && (
+          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
+            <div className="text-xs font-mono text-slate-500 mb-1">TSMC 월매출 (NT$B · YoY %)</div>
+            <MacroLineChart
+              data={data.tsmc_series}
+              series={[
+                { dataKey: 'revenue_bn', color: '#06b6d4', name: '매출 NT$B', type: 'bar' },
+                { dataKey: 'yoy', color: '#f59e0b', name: 'YoY %', yAxisId: 'right' },
+              ]}
+              height={220}
+              yAxisFormatter={(v) => `${v.toFixed(0)}`}
+              rightYAxisFormatter={(v) => `${v.toFixed(0)}%`}
+              referenceLines={[{ y: 0, color: '#64748b', yAxisId: 'right' }]}
+            />
+          </div>
+        )}
+
+        {/* HBM3E 가격 (AI 프리미엄 메모리) */}
+        {data.hbm3e_series && data.hbm3e_series.length > 0 && (
+          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
+            <div className="text-xs font-mono text-slate-500 mb-1">HBM3E 가격 ($/GB · 분기 추정)</div>
+            <MacroLineChart
+              data={data.hbm3e_series}
+              series={[
+                { dataKey: 'contract', color: '#10b981', name: '컨트랙트', dot: true },
+                { dataKey: 'spot', color: '#f43f5e', name: '스팟', dot: true },
+              ]}
+              height={220}
+              yAxisFormatter={(v) => `$${v}`}
+              yDomain={['auto', 'auto']}
             />
           </div>
         )}

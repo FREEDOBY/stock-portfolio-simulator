@@ -33,7 +33,10 @@ class SiliconAnalystsFetcher:
         }
 
     def get_hbm_price(self) -> dict:
-        """HBM 세대별 $/GB. {latest_gen, latest_value, series:[{gen,value}]}"""
+        """HBM 세대별 $/GB + HBM3E 컨트랙트/스팟 추이(AI 수요 직결 가격 신호).
+
+        {latest_gen, latest_value, series:[{gen,value}], hbm3e_contract, hbm3e_spot}
+        """
         dp = self._fetch("hbm-pricing")
         pts = [
             {"gen": p.get("series_label"), "period": p.get("period_sort_key"),
@@ -43,7 +46,9 @@ class SiliconAnalystsFetcher:
         pts.sort(key=lambda x: x["period"] or 0)
         latest = pts[-1] if pts else {}
         return {"latest_gen": latest.get("gen"), "latest_value": latest.get("value"),
-                "unit": "$/GB", "series": pts}
+                "unit": "$/GB", "series": pts,
+                "hbm3e_contract": self._series(dp, "hbm3e-contract"),
+                "hbm3e_spot": self._series(dp, "hbm3e-spot")}
 
     def _series(self, dp: list, key: str) -> dict:
         pts = [

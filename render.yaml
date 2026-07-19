@@ -25,3 +25,7 @@ services:
       # 없으면 코스피 저점의 신용/반대매매·반도체 수출이 수동/미표시로 폴백 (나머지는 정상)
       - key: KOFIA_API_KEY
         sync: false
+      # 한국은행 ECOS 인증키 — 집적회로 수출물가지수(반도체 레짐 메모리 가격 주지표)
+      # 없으면 sample 키(최근 10개월, YoY 불가 → 3M 변화율)로 폴백
+      - key: ECOS_API_KEY
+        sync: false

@@ -17,6 +17,8 @@ from .naver_flow_fetcher import naver_flow_fetcher
 from .silicon_analysts_fetcher import silicon_analysts_fetcher
 from .bigtech_capex_fetcher import bigtech_capex_fetcher
 from .customs_export_fetcher import customs_export_fetcher
+from .ecos_fetcher import ecos_fetcher
+from .tsmc_revenue_fetcher import tsmc_revenue_fetcher
 
 logger = logging.getLogger(__name__)
 
@@ -828,22 +830,26 @@ class MacroService:
     def _semiconductor_regime(self, raw: MacroRawData, indicators: dict) -> dict:
         """반도체 레짐 = AI 반도체 사이클 고점 '선행' 판독
 
-        선행(펀더멘탈·주축): 빅테크 캐펙스 증가율(수요) + D램 가격(공급) — 사이클을 선행
-        확인(주가·동행): 메모리/로직 과열·상대강도·모멘텀·RSI — 선행 신호를 확인
-        고점위험 스코어 = 선행(최대 60) + 확인(최대 40)
+        선행(펀더멘탈·주축, 최대 85): 빅테크 캐펙스 30 + 메모리 가격 합성 25
+          + TSMC 월매출 15 + 한국 수출 15 — 사이클을 선행
+        확인(주가·동행, 최대 40): 메모리/로직 과열·상대강도·모멘텀·RSI
+        고점위험 스코어 = min(100, 선행 + 확인)
         """
         # ══ 선행 신호 (펀더멘탈) ══
         leading: list[dict] = []
         lead_score = 0
+
+        def _arrow(d: Optional[str]) -> str:
+            return {"rising": "↑", "falling": "↓", "flat": "→"}.get(d or "", "?")
 
         # 1) 빅테크 캐펙스 증가율 (AI 수요 최상류·선행)
         capex = bigtech_capex_fetcher.get_capex()
         cap_g, cap_accel = capex.get("growth_qoq"), capex.get("accelerating")
         if cap_g is not None:
             if cap_g < 0:
-                st, pts = "감소", 35
+                st, pts = "감소", 30
             elif cap_accel is False:
-                st, pts = "증가율 둔화", 25
+                st, pts = "증가율 둔화", 20
             else:
                 st, pts = "가속", 0
             lead_score += pts
@@ -853,38 +859,78 @@ class MacroService:
                 "detail": f"합계 ${capex.get('total_latest')}B",
             })
 
-        # 2) D램 가격 (선행 가격): DDR4 스팟 방향 + 반도체 PPI YoY
+        # 2) 메모리 가격 합성 (선행 가격): ECOS 집적회로 수출물가(주지표)
+        #    + HBM3E 방향(AI 프리미엄) + DDR4 스팟 방향(레거시) · PPI는 폴백
         ddr = silicon_analysts_fetcher.get_dram_ddr4()
         spot = ddr.get("spot", {})
         spot_dir, spot_val = spot.get("direction"), spot.get("latest")
+        hbm = silicon_analysts_fetcher.get_hbm_price()
+        hbm3e_spot, hbm3e_contract = hbm.get("hbm3e_spot", {}), hbm.get("hbm3e_contract", {})
+        hbm_dir = hbm3e_spot.get("direction") or hbm3e_contract.get("direction")
+        ecos = ecos_fetcher.get_ic_export_price()
         ppi = self._series_to_pd(raw.fred_series.get("PCU334413334413"))
         ppi_yoy = None
         if ppi is not None and len(ppi) >= 13:
             yoy = self.calc.yoy_percent(ppi).dropna()
             if len(yoy):
                 ppi_yoy = round(float(yoy.iloc[-1]), 1)
-        if spot_dir is not None or ppi_yoy is not None:
-            if spot_dir == "falling" or (ppi_yoy is not None and ppi_yoy < 0):
-                st, pts = "꺾임", 25
-            elif spot_dir == "rising":
-                st, pts = "상승", 5
+        # 주지표: ECOS YoY(실키) → ECOS 3M(샘플키, 10개월 제한) → 반도체 PPI YoY
+        if ecos.get("available") and ecos.get("yoy") is not None:
+            main_val, main_label = ecos["yoy"], "IC수출물가 YoY"
+        elif ecos.get("available") and ecos.get("chg_3m") is not None:
+            main_val, main_label = ecos["chg_3m"], "IC수출물가 3M"
+        elif ppi_yoy is not None:
+            main_val, main_label = ppi_yoy, "반도체 PPI YoY"
+        else:
+            main_val, main_label = None, None
+        if main_val is not None or spot_dir is not None or hbm_dir is not None:
+            pts = 0
+            if main_val is not None and main_val < 0:
+                pts += 15
+            if hbm_dir == "falling":
+                pts += 5
+            if spot_dir == "falling":
+                pts += 5
+            if pts >= 15:
+                st = "꺾임"
+            elif pts >= 5:
+                st = "경계"
+            elif main_val is not None and main_val > 10:
+                st = "상승"
             else:
-                st, pts = "보합", 0
+                st = "보합"
             lead_score += pts
             leading.append({
-                "key": "dram", "label": "D램 가격", "status": st,
-                "value": f"DDR4 ${spot_val}" if spot_val is not None else "N/A",
-                "detail": f"반도체 PPI YoY {ppi_yoy:+.0f}%" if ppi_yoy is not None else "PPI N/A",
+                "key": "dram", "label": "메모리 가격", "status": st,
+                "value": f"{main_label} {main_val:+.0f}%" if main_val is not None else "N/A",
+                "detail": f"HBM3E {_arrow(hbm_dir)} · DDR4 스팟 {_arrow(spot_dir)}",
             })
 
-        # 3) 한국 반도체 수출 YoY (글로벌 반도체 사이클 선행지수)
+        # 3) TSMC 월매출 YoY (AI 반도체 생산 최상류, 월간 — 캐펙스보다 빠른 경고)
+        tsmc = tsmc_revenue_fetcher.get_monthly_revenue()
+        if tsmc.get("available"):
+            t_yoy = tsmc["yoy"]
+            if t_yoy < 0:
+                st, pts = "감소", 15
+            elif tsmc.get("slowing"):
+                st, pts = "증가율 둔화", 8
+            else:
+                st, pts = "가속", 0
+            lead_score += pts
+            leading.append({
+                "key": "tsmc", "label": "TSMC 월매출", "status": st,
+                "value": f"YoY {t_yoy:+.0f}%",
+                "detail": f"{tsmc.get('latest_period')} NT${tsmc.get('revenue_bn'):.0f}B · 직전 {tsmc.get('yoy_prev'):+.0f}%",
+            })
+
+        # 4) 한국 반도체 수출 YoY (글로벌 반도체 사이클 선행지수)
         kr_exp = customs_export_fetcher.get_semiconductor_export()
         exp_yoy = kr_exp.get("yoy") if kr_exp.get("available") else None
         if exp_yoy is not None:
             if exp_yoy < 0:
-                st, pts = "감소", 25
+                st, pts = "감소", 15
             elif exp_yoy < 10:
-                st, pts = "둔화", 12
+                st, pts = "둔화", 8
             else:
                 st, pts = "견조", 0
             lead_score += pts
@@ -990,8 +1036,17 @@ class MacroService:
         info = phase_info[phase]
 
         # ── 차트용 시계열 ──
+        def _with_qoq(pts: list[dict]) -> list[dict]:
+            """시간순 포인트에 직전 대비 변화율(qoq %) 추가. 첫 포인트는 None."""
+            out, prev = [], None
+            for p in pts:
+                qoq = round((p["value"] / prev - 1) * 100, 1) if prev else None
+                out.append({**p, "qoq": qoq})
+                prev = p["value"]
+            return out
+
         # 빅테크 캐펙스 분기 추이 (시간순)
-        capex_series = list(reversed(capex.get("total_series", [])))
+        capex_series = _with_qoq(list(reversed(capex.get("total_series", []))))
         # 메모리 vs 로직 주가 (공통 시작=100 재정규화, 주봉 근사)
         mem_logic_series = []
         if mem is not None and logic is not None:
@@ -1026,12 +1081,31 @@ class MacroService:
                 return f"{n // 100:04d}-{min(12, max(1, n % 100) * 3):02d}"
             except (TypeError, ValueError):
                 return None
+        # 변화율은 같은 소스(컨트랙트끼리·스팟끼리) 내에서만 계산 — 접합 지점은 None(라인 끊김)
+        def _src_pts(src: dict) -> list[dict]:
+            pts = [{"date": _q2d(p.get("period")), "value": p.get("value")}
+                   for p in src.get("points", [])
+                   if _q2d(p.get("period")) and p.get("value") is not None]
+            pts.sort(key=lambda x: x["date"])
+            return _with_qoq(pts)
+
         ddr4_series = sorted(
-            [{"date": _q2d(p.get("period")), "value": p.get("value")}
-             for p in (spot.get("points", []) + ddr.get("contract", {}).get("points", []))
-             if _q2d(p.get("period")) and p.get("value") is not None],
+            _src_pts(ddr.get("contract", {})) + _src_pts(spot),
             key=lambda x: x["date"],
         )
+
+        # HBM3E 컨트랙트/스팟 가격 추이 ($/GB, 분기)
+        hbm_map: dict[str, dict] = {}
+        for kind, src in (("contract", hbm3e_contract), ("spot", hbm3e_spot)):
+            for p in src.get("points", []):
+                d = _q2d(p.get("period"))
+                if d and p.get("value") is not None:
+                    hbm_map.setdefault(d, {"date": d})[kind] = p["value"]
+        hbm3e_series = sorted(hbm_map.values(), key=lambda x: x["date"])
+
+        # ECOS 집적회로 수출물가지수 (달러기준 월간) / TSMC 월매출 YoY
+        ecos_series = ecos.get("series", []) if ecos.get("available") else []
+        tsmc_series = tsmc.get("series", []) if tsmc.get("available") else []
 
         return {
             "phase": phase,
@@ -1047,6 +1121,9 @@ class MacroService:
             "ppi_series": ppi_series,
             "export_series": export_series,
             "ddr4_series": ddr4_series,
+            "hbm3e_series": hbm3e_series,
+            "ecos_series": ecos_series,
+            "tsmc_series": tsmc_series,
             # 선행(펀더멘탈) / 확인(주가)
             "leading_signals": leading,
             "confirm_signals": confirm,
@@ -1060,8 +1137,12 @@ class MacroService:
                 "ddr4_spot": spot_val, "ddr4_spot_dir": spot_dir,
                 "ddr4_contract": ddr.get("contract", {}).get("latest"),
                 "ppi_yoy": ppi_yoy,
-                "hbm_gen": silicon_analysts_fetcher.get_hbm_price().get("latest_gen"),
-                "hbm_value": silicon_analysts_fetcher.get_hbm_price().get("latest_value"),
+                "hbm_gen": hbm.get("latest_gen"),
+                "hbm_value": hbm.get("latest_value"),
+                "ic_export_latest": ecos.get("latest"),
+                "ic_export_yoy": ecos.get("yoy"),
+                "ic_export_chg_3m": ecos.get("chg_3m"),
+                "ecos_source": ecos.get("source"),
             },
             "proxy": {
                 "mem_avg": mem_3m, "logic_avg": logic_3m,
