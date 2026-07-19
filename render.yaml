@@ -21,3 +21,7 @@ services:
       # 로컬 .env의 FRED_API_KEY 값을 대시보드에서 입력 (git에 올리지 말 것)
       - key: FRED_API_KEY
         sync: false
+      # 공공데이터포털(data.go.kr) 인증키 — KOFIA(신용잔고·반대매매) + 관세청(한국 반도체 수출) 공용
+      # 없으면 코스피 저점의 신용/반대매매·반도체 수출이 수동/미표시로 폴백 (나머지는 정상)
+      - key: KOFIA_API_KEY
+        sync: false
