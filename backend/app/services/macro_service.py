@@ -1184,6 +1184,93 @@ class MacroService:
             return "easing"         # 급증했다 60% 이하로 진정
         return "normal"
 
+    @staticmethod
+    def _last_swing_low(s: pd.Series, threshold: float = 0.10):
+        """peak까지의 시계열에서 마지막 ≥threshold 조정의 저점 → (date, value)
+
+        신고가 갱신 시점에 직전 조정이 threshold 이상 깊었으면 그 저점을 후보로 기록.
+        마지막 후보 = 최종 가속(파라볼릭) 구간의 출발점. 조정이 없으면 (None, None).
+        """
+        run_max = float("-inf")
+        cur_min = cur_min_idx = None
+        in_corr = False
+        last_idx, last_val = None, None
+        for idx, v in s.items():
+            v = float(v)
+            if v >= run_max:
+                if in_corr and cur_min is not None:
+                    last_idx, last_val = cur_min_idx, cur_min
+                run_max = v
+                in_corr, cur_min, cur_min_idx = False, None, None
+            else:
+                if cur_min is None or v < cur_min:
+                    cur_min, cur_min_idx = v, idx
+                if v <= run_max * (1 - threshold):
+                    in_corr = True
+        return last_idx, last_val
+
+    @staticmethod
+    def _fib_level_reached(peak: float, rise: float, bottom: float) -> Optional[str]:
+        """저점이 도달한 가장 깊은 Fib 되돌림 레벨 라벨"""
+        for label, frac in [(">100%", 1.0), ("61.8%", 0.618), ("50%", 0.5), ("38.2%", 0.382)]:
+            if bottom <= peak - frac * rise:
+                return label
+        return None
+
+    def _detect_parabolic_events(self, monthly: pd.Series,
+                                 dd_threshold: float = 0.25,
+                                 swing: float = 0.15) -> list[dict]:
+        """전체이력 월봉에서 역대 파라볼릭 고점 이벤트 검출 + 되돌림 분석
+
+        이벤트 = 신고가에서 dd_threshold 이상 하락한 구간.
+        peak = 신고가, bottom = 신고가 회복 전 최저점 (미회복이면 진행형).
+        base = peak 이전 마지막 ≥swing 조정 저점 → Fib 레벨·되돌림 깊이·소요 개월.
+        """
+        # (peak_idx, peak, bottom_idx, bottom, ongoing) 수집
+        segs = []
+        run_max, run_max_idx = float("-inf"), None
+        seg_min = seg_min_idx = None
+        for idx, v in monthly.items():
+            v = float(v)
+            if v >= run_max:
+                if seg_min is not None and seg_min <= run_max * (1 - dd_threshold):
+                    segs.append((run_max_idx, run_max, seg_min_idx, seg_min, False))
+                run_max, run_max_idx = v, idx
+                seg_min, seg_min_idx = None, None
+            else:
+                if seg_min is None or v < seg_min:
+                    seg_min, seg_min_idx = v, idx
+        if seg_min is not None and seg_min <= run_max * (1 - dd_threshold):
+            segs.append((run_max_idx, run_max, seg_min_idx, seg_min, True))
+
+        def months_between(a, b) -> int:
+            return (b.year - a.year) * 12 + (b.month - a.month)
+
+        events = []
+        for peak_idx, peak, bot_idx, bottom, ongoing in segs:
+            before = monthly.loc[:peak_idx]
+            base_idx, base = self._last_swing_low(before, threshold=swing)
+            if base is None:
+                base = float(before.min())
+                base_idx = before.idxmin()
+            rise = peak - base
+            retr_pct = round((peak - bottom) / rise * 100, 1) if rise > 0 else None
+            fib_reached = self._fib_level_reached(peak, rise, bottom) if rise > 0 else None
+            events.append({
+                "peak_date": peak_idx.strftime("%Y-%m-%d"), "peak": round(peak, 1),
+                "base_date": base_idx.strftime("%Y-%m-%d"), "base": round(base, 1),
+                "bottom_date": bot_idx.strftime("%Y-%m-%d"), "bottom": round(bottom, 1),
+                "drawdown_pct": round((bottom / peak - 1) * 100, 1),
+                "retracement_pct": retr_pct,
+                "fib_reached": fib_reached,
+                "months_to_bottom": months_between(peak_idx, bot_idx),
+                "fib382": round(peak - 0.382 * rise, 1),
+                "fib50": round(peak - 0.5 * rise, 1),
+                "fib618": round(peak - 0.618 * rise, 1),
+                "ongoing": ongoing,
+            })
+        return events
+
     def _compute_kospi_bottom(self, raw: MacroRawData) -> dict:
         """파라볼릭 되돌림 + 낙폭 밴드 + 신용/반대매매 → 저점 판정
 
@@ -1200,10 +1287,14 @@ class MacroService:
         current_val = float(kospi.iloc[-1])
         drawdown = round((current_val / peak_val - 1) * 100, 1)
 
-        # 파라볼릭 base = peak 이전 최저점 (상승 가속 시작점)
+        # 파라볼릭 base = peak 직전 마지막 ≥15% 조정의 저점 (최종 가속 구간의 출발점)
+        # 10%는 블로우오프 중 쉐이크아웃까지 잡아 base가 peak에 붙음 → 월봉 이벤트 분석과 동일한 15%
+        # 조정이 한 번도 없으면 창 내 최저점 폴백
         before = kospi.loc[:peak_date]
-        base_val = float(before.min())
-        base_date = before.idxmin()
+        base_date, base_val = self._last_swing_low(before, threshold=0.15)
+        if base_val is None:
+            base_val = float(before.min())
+            base_date = before.idxmin()
         rise = peak_val - base_val
 
         def lvl(frac: float) -> float:
@@ -1277,11 +1368,32 @@ class MacroService:
             [{"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1)} for idx, v in monthly.items()]
             if monthly is not None else []
         )
+        # 역대 파라볼릭 고점 이벤트 (월봉, ≥25% 낙폭)
+        parabolic_events = self._detect_parabolic_events(monthly) if monthly is not None else []
+        # 진행형 이벤트는 일봉 기준으로 대체 (월봉 종가 -25% 검출 전에도 항상 표시)
+        if parabolic_events and parabolic_events[-1]["ongoing"]:
+            parabolic_events.pop()
+        if drawdown <= -19 and rise > 0:
+            after_peak = kospi.loc[peak_date:]
+            low_val = float(after_peak.min())
+            low_date = after_peak.idxmin()
+            parabolic_events.append({
+                "peak_date": peak_date.strftime("%Y-%m-%d"), "peak": round(peak_val, 1),
+                "base_date": base_date.strftime("%Y-%m-%d"), "base": round(base_val, 1),
+                "bottom_date": low_date.strftime("%Y-%m-%d"), "bottom": round(low_val, 1),
+                "drawdown_pct": round((low_val / peak_val - 1) * 100, 1),
+                "retracement_pct": round((peak_val - low_val) / rise * 100, 1),
+                "fib_reached": self._fib_level_reached(peak_val, rise, low_val),
+                "months_to_bottom": (low_date.year - peak_date.year) * 12 + (low_date.month - peak_date.month),
+                "fib382": lvl(0.382), "fib50": lvl(0.5), "fib618": lvl(0.618),
+                "ongoing": True,
+            })
 
         return {
             "available": True,
             "price": price,
             "price_full": price_full,
+            "parabolic_events": parabolic_events,
             "peak": {"date": peak_date.strftime("%Y-%m-%d"), "value": round(peak_val, 1)},
             "base": {"date": base_date.strftime("%Y-%m-%d"), "value": round(base_val, 1)},
             "current": round(current_val, 1),
@@ -1331,9 +1443,12 @@ class MacroService:
         current_val = float(ixic.iloc[-1])
         drawdown = round((current_val / peak_val - 1) * 100, 1)
 
+        # 파라볼릭 base = peak 직전 마지막 ≥15% 조정의 저점 (코스피와 동일 규칙)
         before = recent.loc[:peak_date]
-        base_val = float(before.min())
-        base_date = before.idxmin()
+        base_date, base_val = self._last_swing_low(before, threshold=0.15)
+        if base_val is None:
+            base_val = float(before.min())
+            base_date = before.idxmin()
         rise = peak_val - base_val
 
         def lvl(frac: float) -> float:
@@ -1370,10 +1485,32 @@ class MacroService:
         monthly = ixic.resample("MS").last().dropna()
         price_full = [{"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1)} for idx, v in monthly.items()]
 
+        # 역대 파라볼릭 이벤트 (주봉 전체이력 — 월봉보다 급락 주간 포착 정확)
+        parabolic_events = self._detect_parabolic_events(ixic)
+        # 진행형은 현재 5년-창 기준(peak/base 재정의)으로 대체
+        if parabolic_events and parabolic_events[-1]["ongoing"]:
+            parabolic_events.pop()
+        if drawdown <= -19 and rise > 0:
+            after_peak = ixic.loc[peak_date:]
+            low_val = float(after_peak.min())
+            low_date = after_peak.idxmin()
+            parabolic_events.append({
+                "peak_date": peak_date.strftime("%Y-%m-%d"), "peak": round(peak_val, 1),
+                "base_date": base_date.strftime("%Y-%m-%d"), "base": round(base_val, 1),
+                "bottom_date": low_date.strftime("%Y-%m-%d"), "bottom": round(low_val, 1),
+                "drawdown_pct": round((low_val / peak_val - 1) * 100, 1),
+                "retracement_pct": round((peak_val - low_val) / rise * 100, 1),
+                "fib_reached": self._fib_level_reached(peak_val, rise, low_val),
+                "months_to_bottom": (low_date.year - peak_date.year) * 12 + (low_date.month - peak_date.month),
+                "fib382": lvl(0.382), "fib50": lvl(0.5), "fib618": lvl(0.618),
+                "ongoing": True,
+            })
+
         return {
             "available": True,
             "price": price,
             "price_full": price_full,
+            "parabolic_events": parabolic_events,
             "peak": {"date": peak_date.strftime("%Y-%m-%d"), "value": round(peak_val, 1)},
             "base": {"date": base_date.strftime("%Y-%m-%d"), "value": round(base_val, 1)},
             "current": round(current_val, 1),

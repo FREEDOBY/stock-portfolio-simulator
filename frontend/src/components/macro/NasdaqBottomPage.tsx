@@ -4,7 +4,7 @@
  * 한국 전용(수급/신용/반대매매)은 없음. '-20% 돌파 = CASE 2' 트리거 강조.
  * 반도체 레짐(피크·CASE1 / 하강·CASE2)이 되돌림 밴드(비리세션 vs 리세션)를 분기.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { fetchNasdaqBottom } from '../../api/macro';
 import { MacroLineChart } from './charts/MacroLineChart';
 import type { CrisisOverlay } from './charts/crisisOverlayConfig';
@@ -25,6 +25,17 @@ const NASDAQ_BEAR_OVERLAYS: CrisisOverlay[] = [
   { start: '2024-12-01', end: '2025-04-30', label: '관세쇼크 -24%', type: 'correction' },
   { start: '2026-06-01', end: '2026-07-31', label: '현재 -8%', type: 'correction' },
 ];
+
+function shiftMonths(dateStr: string, m: number): string {
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() + m);
+  return d.toISOString().substring(0, 10);
+}
+
+// 도달 Fib 레벨별 색 (깊을수록 위험색)
+const FIB_COLOR: Record<string, string> = {
+  '>100%': '#a78bfa', '61.8%': '#ef4444', '50%': '#f97316', '38.2%': '#f59e0b',
+};
 
 type BearRow = { period: string; high: string; low: string; drop: number; dur: string; current?: boolean };
 const NASDAQ_RECESSION: BearRow[] = [
@@ -64,6 +75,37 @@ export function NasdaqBottomPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // 역대 파라볼릭 이벤트 선택 (전체이력 차트 줌인)
+  const [selectedEvent, setSelectedEvent] = useState<number | null>(null);
+  const events = data?.parabolic_events ?? [];
+  const fullPrice = useMemo(() => data?.price_full ?? [], [data]);
+  const selEv = selectedEvent !== null ? events[selectedEvent] : null;
+
+  // 선택 이벤트 구간 → Brush 줌 범위 (base 6개월 전 ~ 저점 12개월 후)
+  const eventRange = useMemo<[number, number] | null>(() => {
+    if (!selEv || fullPrice.length === 0) return null;
+    const from = shiftMonths(selEv.base_date, -6);
+    const to = shiftMonths(selEv.bottom_date, 12);
+    let start = fullPrice.findIndex((p) => p.date >= from);
+    if (start < 0) start = 0;
+    let end = fullPrice.length - 1;
+    for (let i = fullPrice.length - 1; i >= 0; i--) {
+      if (fullPrice[i].date <= to) { end = i; break; }
+    }
+    return start < end ? [start, end] : null;
+  }, [selEv, fullPrice]);
+
+  // A섹션 기본 뷰 = 현재 이벤트 구간 (base 3개월 전 ~ 현재) — Brush로 5년 전체 확장 가능
+  const currentRange = useMemo<[number, number] | null>(() => {
+    const price = data?.price ?? [];
+    const baseDate = data?.base?.date;
+    if (price.length < 2 || !baseDate) return null;
+    const from = shiftMonths(baseDate, -3);
+    let start = price.findIndex((p) => p.date >= from);
+    if (start < 0) start = 0;
+    return start < price.length - 1 ? [start, price.length - 1] : null;
+  }, [data]);
 
   if (isLoading) {
     return (
@@ -158,7 +200,7 @@ export function NasdaqBottomPage() {
           <span className="text-sm font-mono font-bold text-cyan-400">A.</span>
           <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">파라볼릭 되돌림</h3>
           <span className="text-xs font-mono text-slate-600 ml-auto">
-            peak {retracement.peak.toLocaleString()} · base {retracement.base.toLocaleString()} ({data.base?.date})
+            peak {retracement.peak.toLocaleString()} · base {retracement.base.toLocaleString()} ({data.base?.date}) · 하단 바 = 5년 전체
           </span>
         </div>
         <MacroLineChart
@@ -167,6 +209,9 @@ export function NasdaqBottomPage() {
           referenceLines={referenceLines}
           height={300}
           yAxisFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+          yDomain={['auto', 'auto']}
+          brush
+          brushRange={currentRange}
         />
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-3">
           {[
@@ -212,15 +257,76 @@ export function NasdaqBottomPage() {
         <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-1">
             <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">역대 나스닥 약세장 (전체 이력)</h3>
-            <span className="text-xs font-mono text-slate-600 ml-auto">1971~ 월봉 · 음영 = 약세장</span>
+            <span className="text-xs font-mono text-slate-600 ml-auto">1971~ 월봉 · 음영 = 약세장 · 하단 바 드래그 = 확대/스크롤</span>
           </div>
           <MacroLineChart
             data={data.price_full}
             series={[{ dataKey: 'value', color: '#06b6d4', name: 'NASDAQ' }]}
             crisisOverlays={NASDAQ_BEAR_OVERLAYS}
-            height={300}
+            referenceLines={selEv ? [
+              { y: selEv.peak, color: '#64748b', label: 'Peak' },
+              { y: selEv.fib382, color: '#f59e0b', label: '38.2%' },
+              { y: selEv.fib50, color: '#f97316', label: '50%' },
+              { y: selEv.fib618, color: '#ef4444', label: '61.8%' },
+              { y: selEv.base, color: '#475569', label: 'Base' },
+            ] : []}
+            height={340}
             yAxisFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+            brush
+            brushRange={eventRange}
           />
+          {/* 이벤트 테이블: 행 클릭 → 해당 구간 줌 + 그 이벤트의 Fib 레벨 표시 */}
+          {events.length > 0 && (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-xs font-mono whitespace-nowrap">
+                <thead>
+                  <tr className="text-slate-600 border-b border-slate-800">
+                    <th className="text-left py-1">고점</th>
+                    <th className="text-right px-2">Base</th>
+                    <th className="text-right px-2">저점</th>
+                    <th className="text-right px-2">낙폭</th>
+                    <th className="text-right px-2">되돌림</th>
+                    <th className="text-right px-2">도달 Fib</th>
+                    <th className="text-right">고점→저점</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {events.map((ev, i) => (
+                    <tr
+                      key={ev.peak_date}
+                      onClick={() => setSelectedEvent(selectedEvent === i ? null : i)}
+                      className={`border-b border-slate-800/40 cursor-pointer transition-colors ${
+                        selectedEvent === i ? 'bg-cyan-500/10' : 'hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <td className={`py-1 ${ev.ongoing ? 'text-cyan-300 font-bold' : 'text-slate-300'}`}>
+                        {ev.peak_date.substring(0, 7)} · {ev.peak.toLocaleString()}{ev.ongoing ? ' (진행형)' : ''}
+                      </td>
+                      <td className="text-right px-2 text-slate-500">
+                        {ev.base.toLocaleString()} ({ev.base_date.substring(0, 7)})
+                      </td>
+                      <td className="text-right px-2 text-slate-500">
+                        {ev.bottom.toLocaleString()} ({ev.bottom_date.substring(0, 7)})
+                      </td>
+                      <td className="text-right px-2 font-bold"
+                        style={{ color: ev.drawdown_pct <= -50 ? '#ef4444' : ev.drawdown_pct <= -30 ? '#f97316' : '#f59e0b' }}>
+                        {ev.drawdown_pct}%
+                      </td>
+                      <td className="text-right px-2 text-slate-300">{ev.retracement_pct ?? '–'}%</td>
+                      <td className="text-right px-2 font-bold"
+                        style={{ color: (ev.fib_reached && FIB_COLOR[ev.fib_reached]) || '#64748b' }}>
+                        {ev.fib_reached ?? '<38.2%'}
+                      </td>
+                      <td className="text-right text-slate-500">{ev.months_to_bottom}개월</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-xs font-mono text-slate-600 mt-2">
+                행 클릭 = 해당 이벤트 구간 확대 + Fib 레벨 표시 · 다시 클릭 = 전체 보기 · 되돌림 = (고점−저점)÷(고점−base)
+              </p>
+            </div>
+          )}
           <p className="text-xs font-mono text-slate-600 mt-2">
             회색 = 리세션 동반(-31~-78%) · 빨강 = 리세션 없음(-19~-37%) · 현재 오른쪽 끝
           </p>

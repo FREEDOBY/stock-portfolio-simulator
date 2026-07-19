@@ -129,10 +129,29 @@ export interface SemiconductorData {
 export type CreditTrend = 'rising' | 'falling' | 'stalling';
 export type ForcedSelling = 'spike' | 'normal' | 'easing';
 
+/** 역대 파라볼릭 고점 이벤트 (월봉 기반 되돌림 분석) */
+export interface ParabolicEvent {
+  peak_date: string;
+  peak: number;
+  base_date: string;
+  base: number;
+  bottom_date: string;
+  bottom: number;
+  drawdown_pct: number;
+  retracement_pct: number | null;
+  fib_reached: string | null;
+  months_to_bottom: number;
+  fib382: number;
+  fib50: number;
+  fib618: number;
+  ongoing: boolean;
+}
+
 export interface KospiBottomData {
   available: boolean;
   price?: Array<{ date: string; value: number }>;
   price_full?: Array<{ date: string; value: number }>;
+  parabolic_events?: ParabolicEvent[];
   peak?: { date: string; value: number };
   base?: { date: string; value: number };
   current?: number;
@@ -164,6 +183,7 @@ export interface NasdaqBottomData {
   available: boolean;
   price?: Array<{ date: string; value: number }>;
   price_full?: Array<{ date: string; value: number }>;
+  parabolic_events?: ParabolicEvent[];
   peak?: { date: string; value: number };
   base?: { date: string; value: number };
   current?: number;
