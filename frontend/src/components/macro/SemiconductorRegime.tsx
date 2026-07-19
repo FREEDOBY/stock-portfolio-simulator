@@ -126,32 +126,31 @@ export function SemiconductorRegime({ data }: Props) {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {/* 빅테크 캐펙스 분기 추이 */}
-          {data.capex_series && data.capex_series.length > 0 && (
-            <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-              <div className="text-xs font-mono text-slate-500 mb-1">빅테크 캐펙스 분기 ($B)</div>
-              <MacroLineChart
-                data={data.capex_series}
-                series={[{ dataKey: 'value', color: '#10b981', name: '캐펙스', type: 'bar' }]}
-                height={200}
-                yAxisFormatter={(v) => `$${v}B`}
-              />
-            </div>
-          )}
-          {/* D램 DDR4 가격 추이 (컨트랙트 → 스팟) */}
-          {data.ddr4_series && data.ddr4_series.length > 0 && (
-            <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-              <div className="text-xs font-mono text-slate-500 mb-1">D램 DDR4 8Gb 가격 ($ · 컨트랙트→스팟)</div>
-              <MacroLineChart
-                data={data.ddr4_series}
-                series={[{ dataKey: 'value', color: '#f43f5e', name: 'DDR4 $', type: 'area' }]}
-                height={200}
-                yAxisFormatter={(v) => `$${v}`}
-              />
-            </div>
-          )}
-        </div>
+        {/* 빅테크 캐펙스 분기 추이 */}
+        {data.capex_series && data.capex_series.length > 0 && (
+          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
+            <div className="text-xs font-mono text-slate-500 mb-1">빅테크 캐펙스 분기 ($B)</div>
+            <MacroLineChart
+              data={data.capex_series}
+              series={[{ dataKey: 'value', color: '#10b981', name: '캐펙스', type: 'bar' }]}
+              height={220}
+              yAxisFormatter={(v) => `$${v}B`}
+            />
+          </div>
+        )}
+
+        {/* D램 DDR4 가격 추이 (컨트랙트 → 스팟) */}
+        {data.ddr4_series && data.ddr4_series.length > 0 && (
+          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
+            <div className="text-xs font-mono text-slate-500 mb-1">D램 DDR4 8Gb 가격 ($ · 컨트랙트→스팟)</div>
+            <MacroLineChart
+              data={data.ddr4_series}
+              series={[{ dataKey: 'value', color: '#f43f5e', name: 'DDR4 $', type: 'area' }]}
+              height={220}
+              yAxisFormatter={(v) => `$${v}`}
+            />
+          </div>
+        )}
 
         {/* 한국 반도체 수출 추이 (월별) */}
         {data.export_series && data.export_series.length > 0 && (
@@ -160,7 +159,7 @@ export function SemiconductorRegime({ data }: Props) {
             <MacroLineChart
               data={data.export_series}
               series={[{ dataKey: 'value', color: '#22d3ee', name: '수출 억$', type: 'area' }]}
-              height={200}
+              height={220}
               yAxisFormatter={(v) => `${v}억`}
             />
           </div>
