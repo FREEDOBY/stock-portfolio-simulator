@@ -1,6 +1,6 @@
 import {
   ComposedChart, Line, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, Legend, ReferenceArea, Scatter,
+  ResponsiveContainer, ReferenceLine, Legend, ReferenceArea, Scatter, Brush,
 } from 'recharts';
 import type { CrisisOverlay, SignalMarker } from './crisisOverlayConfig';
 import { OVERLAY_COLORS, MARKER_COLORS } from './crisisOverlayConfig';
@@ -12,6 +12,10 @@ interface SeriesConfig {
   type?: 'line' | 'area' | 'bar';
   strokeDasharray?: string;
   yAxisId?: 'left' | 'right';
+  /** null 사이 고립 포인트도 보이도록 점 표시 (희소 시계열용) */
+  dot?: boolean;
+  /** 막대 최대 폭(px) — 카테고리가 적을 때 과대 막대 방지 */
+  barSize?: number;
 }
 
 interface ReferenceLineConfig {
@@ -34,6 +38,10 @@ interface Props {
   crisisOverlays?: CrisisOverlay[];
   /** 시그널 발동 마커 */
   signalMarkers?: SignalMarker[];
+  /** 하단 Brush(확대/스크롤 바) 표시 */
+  brush?: boolean;
+  /** Brush 초기 범위 [startIndex, endIndex] — 변경 시 해당 구간으로 줌 (이후 자유 드래그 가능) */
+  brushRange?: [number, number] | null;
 }
 
 /** 시그널 마커용 커스텀 도트 */
@@ -79,6 +87,8 @@ export function MacroLineChart({
   rightYDomain,
   crisisOverlays = [],
   signalMarkers = [],
+  brush = false,
+  brushRange = null,
 }: Props) {
   if (!data || data.length === 0) {
     return (
@@ -222,7 +232,7 @@ export function MacroLineChart({
               stroke={ref.color}
               strokeDasharray="3 3"
               strokeWidth={1}
-              label={ref.label ? { value: ref.label, position: 'right', fontSize: 11, fill: ref.color } : undefined}
+              label={ref.label ? { value: ref.label, position: 'insideRight', fontSize: 11, fill: ref.color } : undefined}
             />
           ))}
 
@@ -239,6 +249,7 @@ export function MacroLineChart({
                   fill={s.color + '20'}
                   stroke={s.color}
                   strokeWidth={1.5}
+                  dot={s.dot ? { r: 2.5, fill: s.color, strokeWidth: 0 } : false}
                   name={s.name}
                 />
               );
@@ -251,6 +262,7 @@ export function MacroLineChart({
                   yAxisId={axisId}
                   fill={s.color}
                   opacity={0.7}
+                  maxBarSize={s.barSize}
                   name={s.name}
                 />
               );
@@ -263,7 +275,7 @@ export function MacroLineChart({
                 yAxisId={axisId}
                 stroke={s.color}
                 strokeWidth={1.5}
-                dot={false}
+                dot={s.dot ? { r: 2.5, fill: s.color, strokeWidth: 0 } : false}
                 name={s.name}
                 strokeDasharray={s.strokeDasharray}
               />
@@ -278,6 +290,21 @@ export function MacroLineChart({
               shape={<SignalDot />}
               legendType="none"
               isAnimationActive={false}
+            />
+          )}
+
+          {/* 확대/스크롤 Brush — brushRange 변경 시 key 리마운트로 해당 구간 줌 */}
+          {brush && (
+            <Brush
+              key={brushRange ? `${brushRange[0]}-${brushRange[1]}` : 'full'}
+              dataKey="date"
+              height={24}
+              travellerWidth={8}
+              stroke="#475569"
+              fill="#0a0e17"
+              startIndex={brushRange?.[0]}
+              endIndex={brushRange?.[1]}
+              tickFormatter={(v) => String(v).substring(0, 7)}
             />
           )}
         </ComposedChart>
