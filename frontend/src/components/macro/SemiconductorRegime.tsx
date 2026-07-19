@@ -139,20 +139,32 @@ export function SemiconductorRegime({ data }: Props) {
               />
             </div>
           )}
-          {/* 반도체 PPI YoY (D램 가격 프록시) */}
-          {data.ppi_series && data.ppi_series.length > 0 && (
+          {/* D램 DDR4 가격 추이 (컨트랙트 → 스팟) */}
+          {data.ddr4_series && data.ddr4_series.length > 0 && (
             <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-              <div className="text-xs font-mono text-slate-500 mb-1">반도체 PPI YoY (D램 가격 프록시)</div>
+              <div className="text-xs font-mono text-slate-500 mb-1">D램 DDR4 8Gb 가격 ($ · 컨트랙트→스팟)</div>
               <MacroLineChart
-                data={data.ppi_series}
-                series={[{ dataKey: 'value', color: '#a78bfa', name: 'PPI YoY%', type: 'area' }]}
+                data={data.ddr4_series}
+                series={[{ dataKey: 'value', color: '#f43f5e', name: 'DDR4 $', type: 'area' }]}
                 height={200}
-                yAxisFormatter={(v) => `${v}%`}
-                referenceLines={[{ y: 0, color: '#ef4444' }]}
+                yAxisFormatter={(v) => `$${v}`}
               />
             </div>
           )}
         </div>
+
+        {/* 한국 반도체 수출 추이 (월별) */}
+        {data.export_series && data.export_series.length > 0 && (
+          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
+            <div className="text-xs font-mono text-slate-500 mb-1">한국 반도체 수출 (월별, 억$ · HS 8542)</div>
+            <MacroLineChart
+              data={data.export_series}
+              series={[{ dataKey: 'value', color: '#22d3ee', name: '수출 억$', type: 'area' }]}
+              height={200}
+              yAxisFormatter={(v) => `${v}억`}
+            />
+          </div>
+        )}
       </div>
 
       {/* 참고 실데이터: 캐펙스 · D램 · HBM */}

@@ -1013,6 +1013,25 @@ class MacroService:
                 {"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1)}
                 for idx, v in yoy_s.items()
             ][-60:]
+        # 한국 반도체 수출 추이 (월별, 억달러)
+        export_series = [
+            {"date": f"{str(p['period'])[:4]}-{str(p['period'])[4:6]}", "value": p.get("value")}
+            for p in kr_exp.get("series", []) if len(str(p.get("period", ""))) == 6
+        ]
+
+        # DDR4 가격 추이 (컨트랙트+스팟 병합, $/8Gb) — period_sort_key(YYYY0Q) → YYYY-MM
+        def _q2d(psk) -> Optional[str]:
+            try:
+                n = int(psk)
+                return f"{n // 100:04d}-{min(12, max(1, n % 100) * 3):02d}"
+            except (TypeError, ValueError):
+                return None
+        ddr4_series = sorted(
+            [{"date": _q2d(p.get("period")), "value": p.get("value")}
+             for p in (spot.get("points", []) + ddr.get("contract", {}).get("points", []))
+             if _q2d(p.get("period")) and p.get("value") is not None],
+            key=lambda x: x["date"],
+        )
 
         return {
             "phase": phase,
@@ -1026,6 +1045,8 @@ class MacroService:
             "capex_series": capex_series,
             "mem_logic_series": mem_logic_series,
             "ppi_series": ppi_series,
+            "export_series": export_series,
+            "ddr4_series": ddr4_series,
             # 선행(펀더멘탈) / 확인(주가)
             "leading_signals": leading,
             "confirm_signals": confirm,
