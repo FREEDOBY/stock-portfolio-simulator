@@ -989,6 +989,31 @@ class MacroService:
         }
         info = phase_info[phase]
 
+        # ── 차트용 시계열 ──
+        # 빅테크 캐펙스 분기 추이 (시간순)
+        capex_series = list(reversed(capex.get("total_series", [])))
+        # 메모리 vs 로직 주가 (공통 시작=100 재정규화, 주봉 근사)
+        mem_logic_series = []
+        if mem is not None and logic is not None:
+            mldf = pd.concat([mem, logic], axis=1).dropna()
+            if not mldf.empty:
+                mldf.columns = ["memory", "logic"]
+                mldf = mldf / mldf.iloc[0] * 100
+                mldf = mldf.iloc[::5]
+                mem_logic_series = [
+                    {"date": idx.strftime("%Y-%m-%d"),
+                     "memory": round(float(r["memory"]), 1), "logic": round(float(r["logic"]), 1)}
+                    for idx, r in mldf.iterrows()
+                ]
+        # 반도체 PPI YoY 추이 (월별, 최근 5년)
+        ppi_series = []
+        if ppi is not None and len(ppi) >= 13:
+            yoy_s = self.calc.yoy_percent(ppi).dropna()
+            ppi_series = [
+                {"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1)}
+                for idx, v in yoy_s.items()
+            ][-60:]
+
         return {
             "phase": phase,
             "name": info["name"],
@@ -998,6 +1023,9 @@ class MacroService:
             "top_risk_score": score,
             "lead_score": lead_score,
             "conf_score": conf_score,
+            "capex_series": capex_series,
+            "mem_logic_series": mem_logic_series,
+            "ppi_series": ppi_series,
             # 선행(펀더멘탈) / 확인(주가)
             "leading_signals": leading,
             "confirm_signals": confirm,

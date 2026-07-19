@@ -94,6 +94,10 @@ export interface SemiconductorData {
   // 선행(펀더멘탈) / 확인(주가)
   leading_signals: LeadingSignal[];
   confirm_signals: LeadingSignal[];
+  // 차트용 시계열
+  capex_series?: Array<{ date: string; value: number }>;
+  mem_logic_series?: Array<{ date: string; memory: number; logic: number }>;
+  ppi_series?: Array<{ date: string; value: number }>;
   // 참고 실데이터
   capex: {
     total_latest: number | null;

@@ -4,6 +4,7 @@
  * 확인(주가·동행): 메모리/로직 과열·상대강도·모멘텀·RSI → 선행 신호를 확인
  * 고점위험 스코어 = 선행(최대 60) + 확인(최대 40)
  */
+import { MacroLineChart } from './charts/MacroLineChart';
 import type { SemiconductorData, LeadingSignal } from '../../types/macro';
 
 interface Props {
@@ -103,6 +104,55 @@ export function SemiconductorRegime({ data }: Props) {
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
         {data.confirm_signals.map((s) => <SignalCard key={s.key} s={s} />)}
+      </div>
+
+      {/* 추세 · 시계열 차트 */}
+      <div className="space-y-3 mb-3">
+        <div className="text-xs font-mono text-cyan-400 uppercase tracking-wider">추세 · 시계열</div>
+
+        {/* 메모리 vs 로직 주가 (정규화 지수) */}
+        {data.mem_logic_series && data.mem_logic_series.length > 0 && (
+          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
+            <div className="text-xs font-mono text-slate-500 mb-1">메모리 vs 로직 주가 (시작=100 정규화, 2년)</div>
+            <MacroLineChart
+              data={data.mem_logic_series}
+              series={[
+                { dataKey: 'memory', color: '#f59e0b', name: '메모리' },
+                { dataKey: 'logic', color: '#06b6d4', name: '로직' },
+              ]}
+              height={220}
+              yAxisFormatter={(v) => `${v.toFixed(0)}`}
+            />
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {/* 빅테크 캐펙스 분기 추이 */}
+          {data.capex_series && data.capex_series.length > 0 && (
+            <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
+              <div className="text-xs font-mono text-slate-500 mb-1">빅테크 캐펙스 분기 ($B)</div>
+              <MacroLineChart
+                data={data.capex_series}
+                series={[{ dataKey: 'value', color: '#10b981', name: '캐펙스', type: 'bar' }]}
+                height={200}
+                yAxisFormatter={(v) => `$${v}B`}
+              />
+            </div>
+          )}
+          {/* 반도체 PPI YoY (D램 가격 프록시) */}
+          {data.ppi_series && data.ppi_series.length > 0 && (
+            <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
+              <div className="text-xs font-mono text-slate-500 mb-1">반도체 PPI YoY (D램 가격 프록시)</div>
+              <MacroLineChart
+                data={data.ppi_series}
+                series={[{ dataKey: 'value', color: '#a78bfa', name: 'PPI YoY%', type: 'area' }]}
+                height={200}
+                yAxisFormatter={(v) => `${v}%`}
+                referenceLines={[{ y: 0, color: '#ef4444' }]}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 참고 실데이터: 캐펙스 · D램 · HBM */}
