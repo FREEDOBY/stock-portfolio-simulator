@@ -39,8 +39,9 @@ export function Layout() {
   };
 
   const handleNavigateToDetail = (tab: string) => {
+    // 카테고리 카드 클릭 → 해당 카테고리 페이지(id = 카테고리 id)로 이동
     setDetailTab(tab);
-    setActiveMenu('macro-detail');
+    setActiveMenu(tab);
   };
 
   // 활성 메뉴 항목

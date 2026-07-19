@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { fetchDashboard } from '../../api/macro';
 import { VerdictBanner } from './VerdictBanner';
 import { RecessionWarningBanner } from './RecessionWarningBanner';
@@ -19,21 +19,22 @@ export function MacroDashboard({ onNavigateToDetail }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const result = await fetchDashboard();
-        setData(result);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load macro data');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    load();
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await fetchDashboard();
+      setData(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load macro data');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   // 로딩
   if (isLoading) {

@@ -65,11 +65,120 @@ export interface KostolanyData {
   };
 }
 
+export type CapexStatus = 'up' | 'flat' | 'down';
+
+export interface CapexCompany {
+  id: string;
+  label: string;
+  date: string;
+  status: CapexStatus;
+}
+
+export interface LeadingSignal {
+  key: string;
+  label: string;
+  status: string;
+  value: string;
+  detail: string;
+}
+
+export interface SemiconductorData {
+  phase: 'EXPANSION' | 'LATE_EXPANSION' | 'OVERHEAT' | 'TOP_WARNING' | 'DOWNTURN';
+  name: string;
+  desc: string;
+  action: string;
+  color: string;
+  top_risk_score: number;
+  lead_score: number;
+  conf_score: number;
+  // 선행(펀더멘탈) / 확인(주가)
+  leading_signals: LeadingSignal[];
+  confirm_signals: LeadingSignal[];
+  // 참고 실데이터
+  capex: {
+    total_latest: number | null;
+    growth_qoq: number | null;
+    accelerating: boolean | null;
+    companies: Array<{ name: string; ticker: string; latest: number; prev: number | null }>;
+  };
+  dram_ref: {
+    ddr4_spot: number | null;
+    ddr4_spot_dir: string | null;
+    ddr4_contract: number | null;
+    ppi_yoy: number | null;
+    hbm_gen: string | null;
+    hbm_value: number | null;
+  };
+  proxy: {
+    mem_vs_logic: number | null;
+    mem_avg: number | null;
+    logic_avg: number | null;
+    sox_mom: number | null;
+  };
+}
+
+export type CreditTrend = 'rising' | 'falling' | 'stalling';
+export type ForcedSelling = 'spike' | 'normal' | 'easing';
+
+export interface KospiBottomData {
+  available: boolean;
+  price?: Array<{ date: string; value: number }>;
+  price_full?: Array<{ date: string; value: number }>;
+  peak?: { date: string; value: number };
+  base?: { date: string; value: number };
+  current?: number;
+  drawdown_pct?: number;
+  retracement?: { peak: number; fib382: number; fib50: number; fib618: number; base: number };
+  retracement_pct?: number | null;
+  bands?: {
+    non_recession: { low: number; high: number };
+    recession: { low: number; high: number };
+    applied: 'non_recession' | 'recession';
+  };
+  band_target?: { high: number; low: number };
+  regime?: { phase: string; name: string; color: string };
+  credit_trend?: CreditTrend;
+  credit_source?: 'auto' | 'manual';
+  credit_latest?: number | null;
+  credit_series?: Array<{ date: string; value: number }>;
+  forced_selling?: ForcedSelling;
+  forced_source?: 'auto' | 'manual';
+  forced_amount?: number | null;
+  forced_ratio?: number | null;
+  forced_series?: Array<{ date: string; amount: number | null; ratio: number | null; ucol: number | null }>;
+  investor_flow?: Array<{ date: string; individual: number; foreign: number; institution: number }>;
+  verdict?: string;
+  verdict_color?: string;
+}
+
+export interface NasdaqBottomData {
+  available: boolean;
+  price?: Array<{ date: string; value: number }>;
+  price_full?: Array<{ date: string; value: number }>;
+  peak?: { date: string; value: number };
+  base?: { date: string; value: number };
+  current?: number;
+  drawdown_pct?: number;
+  retracement?: { peak: number; fib382: number; fib50: number; fib618: number; base: number };
+  retracement_pct?: number | null;
+  bands?: {
+    non_recession: { low: number; high: number };
+    recession: { low: number; high: number };
+    applied: 'non_recession' | 'recession';
+  };
+  band_target?: { high: number; low: number };
+  regime?: { phase: string; name: string; color: string };
+  breach20?: boolean;
+  verdict?: string;
+  verdict_color?: string;
+}
+
 export interface DashboardData {
   overall: OverallResult;
   categories: Record<string, CategorySummary>;
   recession_warning?: RecessionWarning;
   kostolany?: KostolanyData;
+  semiconductor?: SemiconductorData;
 }
 
 export const WARNING_LEVEL_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {

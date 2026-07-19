@@ -1,0 +1,419 @@
+/** 코스피 저점 판정기 (사이드바 전용 페이지)
+ *
+ * A. 파라볼릭 되돌림 — KOSPI base 대비 되돌림 + Fib 레벨 + 역사적 베어장 오버레이
+ * B. 신용잔고 추이 (수동, KRX 실연동 전) — 청산 진행/멈춤
+ * C. 반대매매량 (수동) — 강제 디레버리징 스파이크 → 진정
+ * 반도체 레짐(피크·CASE1 / 하강·CASE2)이 되돌림 밴드(비리세션 vs 리세션)를 분기.
+ */
+import { useState, useEffect, useCallback } from 'react';
+import { fetchKospiBottom, setKospiManual } from '../../api/macro';
+import { MacroLineChart } from './charts/MacroLineChart';
+import type { CrisisOverlay } from './charts/crisisOverlayConfig';
+import type { KospiBottomData, CreditTrend, ForcedSelling } from '../../types/macro';
+
+// 5년 차트에 들어오는 한국 약세장 구간 (리포트 표 기반)
+const KOSPI_BEARS: CrisisOverlay[] = [
+  { start: '2021-06-01', end: '2022-09-30', label: '긴축 베어 (-36%)', type: 'correction' },
+  { start: '2024-07-01', end: '2024-12-31', label: '엔캐리+계엄 (-18%)', type: 'correction' },
+  { start: '2026-02-19', end: '2026-03-31', label: '중동쇼크 (-20%)', type: 'recession' },
+];
+
+// 전체이력(1996~) 차트용 — 역대 코스피 약세장 전부 (리포트 표 기반)
+const KOSPI_BEAR_OVERLAYS: CrisisOverlay[] = [
+  { start: '1997-08-01', end: '1998-06-30', label: 'IMF -76%', type: 'recession' },
+  { start: '2000-01-01', end: '2001-09-30', label: '닷컴 -57%', type: 'recession' },
+  { start: '2007-10-01', end: '2008-10-31', label: '금융위기 -57%', type: 'recession' },
+  { start: '2011-04-01', end: '2011-09-30', label: '신용강등 -26%', type: 'correction' },
+  { start: '2018-01-01', end: '2019-08-31', label: '무역전쟁 -24%', type: 'correction' },
+  { start: '2020-01-01', end: '2020-03-31', label: '코로나 -37%', type: 'correction' },
+  { start: '2021-06-01', end: '2022-09-30', label: '긴축 -36%', type: 'correction' },
+  { start: '2024-07-01', end: '2024-12-31', label: '엔캐리계엄 -18%', type: 'correction' },
+  { start: '2026-02-01', end: '2026-03-31', label: '중동쇼크 -20%', type: 'correction' },
+  { start: '2026-06-01', end: '2026-07-31', label: '현재 -31%', type: 'recession' },
+];
+
+// 역대 코스피 약세장 비교표 (리포트 기반)
+type BearRow = { period: string; high: string; low: string; drop: number; dur: string; current?: boolean };
+const KOSPI_RECESSION: BearRow[] = [
+  { period: '1989~92 침체', high: '1,007 (89.4)', low: '459 (92.8)', drop: -54, dur: '3년 4개월' },
+  { period: 'IMF 외환위기', high: '1,145 (94.11)', low: '277 (98.6)', drop: -76, dur: '3년 7개월' },
+  { period: '닷컴붕괴', high: '1,066 (00.1)', low: '463 (01.9)', drop: -57, dur: '1년 8개월' },
+  { period: '금융위기', high: '2,085 (07.10)', low: '892 (08.10)', drop: -57, dur: '1년' },
+];
+const KOSPI_NON_RECESSION: BearRow[] = [
+  { period: '미국 신용강등 11', high: '2,231 (11.4)', low: '1,644 (11.9)', drop: -26, dur: '5개월' },
+  { period: '무역전쟁 18', high: '2,607 (18.1)', low: '1,985 (19.8)', drop: -24, dur: '1년 7개월' },
+  { period: '코로나 쇼크 20', high: '2,267 (20.1)', low: '1,439 (20.3)', drop: -37, dur: '2개월' },
+  { period: '긴축 베어장 21~22', high: '3,316 (21.6)', low: '2,134 (22.9)', drop: -36, dur: '1년 3개월' },
+  { period: '엔캐리+계엄 24', high: '2,896 (24.7)', low: '~2,360 (24.12)', drop: -18, dur: '5개월' },
+  { period: '중동쇼크 26.3', high: '6,347 (26.2)', low: '5,052 (26.3)', drop: -20, dur: '1개월' },
+  { period: '현재 26.7', high: '9,385 (26.6)', low: '6,448 (진행형)', drop: -31, dur: '3주', current: true },
+];
+
+const CREDIT_OPTS: { id: CreditTrend; label: string; color: string }[] = [
+  { id: 'rising', label: '증가', color: '#ef4444' },
+  { id: 'falling', label: '청산중', color: '#f59e0b' },
+  { id: 'stalling', label: '멈춤', color: '#10b981' },
+];
+const FORCED_OPTS: { id: ForcedSelling; label: string; color: string }[] = [
+  { id: 'spike', label: '급증', color: '#ef4444' },
+  { id: 'normal', label: '보통', color: '#64748b' },
+  { id: 'easing', label: '진정', color: '#10b981' },
+];
+
+export function KospiBottomPage() {
+  const [data, setData] = useState<KospiBottomData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      setData(await fetchKospiBottom());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load KOSPI data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const applyManual = async (credit: CreditTrend, forced: ForcedSelling) => {
+    setSaving(true);
+    try {
+      await setKospiManual(credit, forced);
+      await load();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-2 border-cyan-400 border-t-transparent rounded-full mx-auto mb-4" />
+          <p className="text-sm font-mono text-slate-500">Loading KOSPI bottom...</p>
+        </div>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="bg-[#111827] border border-red-500/30 rounded-lg p-6 text-center">
+        <p className="text-sm font-mono text-red-400">[ERROR] {error}</p>
+      </div>
+    );
+  }
+  if (!data?.available || !data.retracement || !data.bands || !data.band_target) {
+    return (
+      <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-6 text-center">
+        <p className="text-sm font-mono text-slate-500">KOSPI 데이터를 불러오지 못했습니다.</p>
+      </div>
+    );
+  }
+
+  const { retracement, bands, band_target, regime } = data;
+  const dd = data.drawdown_pct ?? 0;
+
+  // 차트 시리즈 + Fib 되돌림 기준선
+  const series = [{ dataKey: 'value', color: regime?.color || '#06b6d4', name: 'KOSPI' }];
+  const referenceLines = [
+    { y: retracement.fib382, color: '#f59e0b', label: '38.2%' },
+    { y: retracement.fib50, color: '#f97316', label: '50%' },
+    { y: retracement.fib618, color: '#ef4444', label: '61.8%' },
+    { y: data.current ?? 0, color: '#06b6d4', label: '현재' },
+  ];
+
+  // 낙폭 밴드 게이지 (0 ~ -60%)
+  const GAUGE_MIN = -60;
+  const pct = (v: number) => `${(Math.min(0, Math.max(GAUGE_MIN, v)) / GAUGE_MIN) * 100}%`;
+  const bandLo = bands.applied === 'non_recession' ? bands.non_recession.low : bands.recession.low;
+  const bandHi = bands.applied === 'non_recession' ? bands.non_recession.high : bands.recession.high;
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-4">
+      {/* 판정 배너 */}
+      <div className="bg-[#111827] border rounded-lg p-5" style={{ borderColor: (data.verdict_color || '#64748b') + '50' }}>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: data.verdict_color }} />
+            <div>
+              <div className="text-xs font-mono text-slate-500 uppercase tracking-wider">KOSPI Bottom Verdict</div>
+              <div className="text-2xl font-mono font-bold" style={{ color: data.verdict_color }}>{data.verdict}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-6 text-center">
+            <div>
+              <div className="text-xs font-mono text-slate-600">현재 낙폭</div>
+              <div className="text-2xl font-mono font-bold text-slate-200">{dd.toFixed(1)}%</div>
+            </div>
+            <div>
+              <div className="text-xs font-mono text-slate-600">되돌림</div>
+              <div className="text-2xl font-mono font-bold text-slate-200">{data.retracement_pct ?? '–'}%</div>
+            </div>
+            <div>
+              <div className="text-xs font-mono text-slate-600">반도체 레짐</div>
+              <div className="text-sm font-mono font-bold" style={{ color: regime?.color }}>{regime?.name}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* A. 파라볼릭 되돌림 차트 */}
+      <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-sm font-mono font-bold text-cyan-400">A.</span>
+          <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">파라볼릭 되돌림</h3>
+          <span className="text-xs font-mono text-slate-600 ml-auto">
+            peak {retracement.peak.toLocaleString()} · base {retracement.base.toLocaleString()} ({data.base?.date})
+          </span>
+        </div>
+        <MacroLineChart
+          data={data.price || []}
+          series={series}
+          referenceLines={referenceLines}
+          crisisOverlays={KOSPI_BEARS}
+          height={300}
+          yAxisFormatter={(v) => `${(v / 1000).toFixed(1)}k`}
+        />
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-3">
+          {[
+            { label: 'Peak', v: retracement.peak, c: '#64748b' },
+            { label: '38.2%', v: retracement.fib382, c: '#f59e0b' },
+            { label: '50%', v: retracement.fib50, c: '#f97316' },
+            { label: '61.8%', v: retracement.fib618, c: '#ef4444' },
+            { label: 'Base', v: retracement.base, c: '#475569' },
+          ].map((x) => (
+            <div key={x.label} className="bg-[#0a0e17] rounded p-2 border border-slate-700/30 text-center">
+              <div className="text-xs font-mono text-slate-600">{x.label}</div>
+              <div className="text-sm font-mono font-bold" style={{ color: x.c }}>{x.v.toLocaleString()}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 투자자 수급 (외국인/기관/개인 일별 순매수) */}
+      {data.investor_flow && data.investor_flow.length > 0 && (
+        <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-sm font-mono font-bold text-cyan-400">수급</span>
+            <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">외국인·기관·개인 순매수</h3>
+            <span className="text-xs font-mono text-slate-600 ml-auto">단위: 억원 · 네이버</span>
+          </div>
+          <MacroLineChart
+            data={data.investor_flow}
+            series={[
+              { dataKey: 'foreign', color: '#06b6d4', name: '외국인' },
+              { dataKey: 'institution', color: '#f59e0b', name: '기관' },
+              { dataKey: 'individual', color: '#94a3b8', name: '개인' },
+            ]}
+            referenceLines={[{ y: 0, color: '#475569' }]}
+            height={220}
+            yAxisFormatter={(v) => (Math.abs(v) >= 10000 ? `${(v / 10000).toFixed(1)}조` : `${Math.round(v)}억`)}
+          />
+          <p className="text-xs font-mono text-slate-600 mt-2">
+            외국인 지속 순매도 + 개인 순매수 = 하락 지속 신호 · 외국인 순매수 전환 = 저점 단서
+          </p>
+        </div>
+      )}
+
+      {/* 낙폭 밴드 게이지 */}
+      <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">낙폭 밴드</h3>
+          <span className="text-xs font-mono" style={{ color: regime?.color }}>
+            적용: {bands.applied === 'non_recession' ? '비리세션 (-19~-37%)' : '리세션 (-37~-55%)'} ← 레짐 {regime?.name}
+          </span>
+        </div>
+        <div className="relative h-6 bg-slate-800 rounded-full overflow-hidden">
+          {/* 적용 밴드 구간 */}
+          <div
+            className="absolute h-full"
+            style={{
+              left: pct(bandHi),
+              width: `calc(${pct(bandLo)} - ${pct(bandHi)})`,
+              backgroundColor: (regime?.color || '#64748b') + '30',
+            }}
+          />
+          {/* 현재 낙폭 마커 */}
+          <div className="absolute h-full w-0.5 bg-cyan-400" style={{ left: pct(dd) }} />
+          <div className="absolute text-xs font-mono text-cyan-300 -translate-x-1/2" style={{ left: pct(dd), top: 6 }}>
+            {dd.toFixed(0)}%
+          </div>
+        </div>
+        <div className="flex justify-between text-xs font-mono text-slate-700 mt-1">
+          <span>0%</span><span>-19%</span><span>-37%</span><span>-50%</span><span>-60%</span>
+        </div>
+        <p className="text-xs font-mono text-slate-500 mt-2">
+          밴드 목표가: <span className="text-slate-300">{band_target.high.toLocaleString()}</span> ~{' '}
+          <span className="text-slate-300">{band_target.low.toLocaleString()}</span>
+        </p>
+      </div>
+
+      {/* 전체이력 차트 + 역대 약세장 오버레이 */}
+      {data.price_full && data.price_full.length > 0 && (
+        <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">역대 코스피 약세장 (전체 이력)</h3>
+            <span className="text-xs font-mono text-slate-600 ml-auto">1996~ 월봉 · 음영 = 약세장</span>
+          </div>
+          <MacroLineChart
+            data={data.price_full}
+            series={[{ dataKey: 'value', color: '#06b6d4', name: 'KOSPI' }]}
+            crisisOverlays={KOSPI_BEAR_OVERLAYS}
+            height={300}
+            yAxisFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+          />
+          <p className="text-xs font-mono text-slate-600 mt-2">
+            회색 = 리세션 동반(-54%↑) · 빨강 = 리세션 없음(-18~-37%) · 현재 오른쪽 끝
+          </p>
+        </div>
+      )}
+
+      {/* 역대 코스피 약세장 비교표 */}
+      <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">역대 코스피 약세장</h3>
+          <span className="text-xs font-mono text-slate-600 ml-auto">
+            적용 밴드: <span style={{ color: regime?.color }}>{bands.applied === 'non_recession' ? '비리세션' : '리세션'}</span>
+          </span>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {[
+            { title: '리세션 없음 (-18~-37%)', rows: KOSPI_NON_RECESSION, active: bands.applied === 'non_recession' },
+            { title: '리세션 동반 (-54% 이상)', rows: KOSPI_RECESSION, active: bands.applied === 'recession' },
+          ].map((grp) => (
+            <div key={grp.title} className="rounded-lg border p-2"
+              style={{ borderColor: grp.active ? (regime?.color || '#64748b') + '60' : '#1e293b' }}>
+              <div className="text-xs font-mono mb-2 flex items-center gap-2"
+                style={{ color: grp.active ? regime?.color : '#64748b' }}>
+                {grp.title}
+                {grp.active && (
+                  <span className="text-[10px] px-1.5 rounded" style={{ backgroundColor: (regime?.color || '#64748b') + '20' }}>적용</span>
+                )}
+              </div>
+              <table className="w-full text-xs font-mono">
+                <thead>
+                  <tr className="text-slate-600 border-b border-slate-800">
+                    <th className="text-left py-1">시기</th>
+                    <th className="text-right">고점</th>
+                    <th className="text-right">저점</th>
+                    <th className="text-right">낙폭</th>
+                    <th className="text-right">기간</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {grp.rows.map((r) => (
+                    <tr key={r.period} className="border-b border-slate-800/40"
+                      style={{ backgroundColor: r.current ? '#06b6d415' : 'transparent' }}>
+                      <td className={`py-1 ${r.current ? 'text-cyan-300 font-bold' : 'text-slate-400'}`}>{r.period}</td>
+                      <td className="text-right text-slate-500">{r.high}</td>
+                      <td className="text-right text-slate-500">{r.low}</td>
+                      <td className="text-right font-bold"
+                        style={{ color: r.drop <= -50 ? '#ef4444' : r.drop <= -30 ? '#f97316' : '#f59e0b' }}>{r.drop}%</td>
+                      <td className="text-right text-slate-500">{r.dur}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs font-mono text-slate-600 mt-3">
+          패턴: 리세션 없으면 -18~-37%에서 바닥, 리세션이면 -54%↑ · 중간지대 거의 없음 → 반도체 레짐이 어느 밴드일지 분기
+        </p>
+      </div>
+
+      {/* B/C 신용잔고 + 반대매매 (수동) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm font-mono font-bold text-cyan-400">B.</span>
+            <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">신용잔고 추이</h3>
+            {data.credit_source === 'auto' ? (
+              <span className="text-xs font-mono text-emerald-400/80 ml-auto">
+                자동 · KOFIA{data.credit_latest ? ` (${(data.credit_latest / 1e12).toFixed(1)}조)` : ''}
+              </span>
+            ) : (
+              <span className="text-xs font-mono text-amber-500/70 ml-auto">수동 · 키 미발급</span>
+            )}
+          </div>
+          <p className="text-xs font-mono text-slate-500 mb-3">매수신호 = 청산이 <b className="text-emerald-400">멈춤</b></p>
+          <div className="flex gap-1">
+            {CREDIT_OPTS.map((o) => {
+              const active = data.credit_trend === o.id;
+              const isAuto = data.credit_source === 'auto';
+              return (
+                <button
+                  key={o.id}
+                  onClick={() => applyManual(o.id, data.forced_selling || 'normal')}
+                  disabled={saving || isAuto}
+                  title={isAuto ? 'KOFIA 자동값 (수동 변경 불가)' : ''}
+                  className="flex-1 px-3 py-2 text-sm font-mono rounded transition-all disabled:cursor-not-allowed"
+                  style={{
+                    color: active ? o.color : '#475569',
+                    backgroundColor: active ? o.color + '20' : '#0a0e17',
+                    border: `1px solid ${active ? o.color + '60' : '#1e293b'}`,
+                    opacity: isAuto && !active ? 0.35 : 1,
+                  }}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm font-mono font-bold text-cyan-400">C.</span>
+            <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">반대매매량</h3>
+            {data.forced_source === 'auto' ? (
+              <span className="text-xs font-mono text-emerald-400/80 ml-auto">
+                자동 · KOFIA
+                {data.forced_amount != null ? ` (${(data.forced_amount / 1e8).toFixed(0)}억` : ''}
+                {data.forced_ratio != null ? ` · ${data.forced_ratio}%)` : data.forced_amount != null ? ')' : ''}
+              </span>
+            ) : (
+              <span className="text-xs font-mono text-amber-500/70 ml-auto">수동 · 키 미발급</span>
+            )}
+          </div>
+          <p className="text-xs font-mono text-slate-500 mb-3">스파이크 후 <b className="text-emerald-400">진정</b> = 캐피튤레이션 근접</p>
+          <div className="flex gap-1">
+            {FORCED_OPTS.map((o) => {
+              const active = data.forced_selling === o.id;
+              const isAuto = data.forced_source === 'auto';
+              return (
+                <button
+                  key={o.id}
+                  onClick={() => applyManual(data.credit_trend || 'falling', o.id)}
+                  disabled={saving || isAuto}
+                  title={isAuto ? 'KOFIA 자동값 (수동 변경 불가)' : ''}
+                  className="flex-1 px-3 py-2 text-sm font-mono rounded transition-all disabled:cursor-not-allowed"
+                  style={{
+                    color: active ? o.color : '#475569',
+                    backgroundColor: active ? o.color + '20' : '#0a0e17',
+                    border: `1px solid ${active ? o.color + '60' : '#1e293b'}`,
+                    opacity: isAuto && !active ? 0.35 : 1,
+                  }}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <p className="text-xs font-mono text-slate-600 text-center">
+        판정 = 낙폭 밴드 도달 + 신용 청산 멈춤 + 반대매매 진정 (반도체 레짐이 밴드를 분기)
+      </p>
+    </div>
+  );
+}

@@ -36,6 +36,16 @@ class MacroRawData(BaseModel):
     nasdaq_daily: list[SeriesDataPoint] = Field(default_factory=list)
     vix: list[SeriesDataPoint] = Field(default_factory=list)
     dxy: list[SeriesDataPoint] = Field(default_factory=list)
+    # 반도체 레짐용 (메모리 3사 + 로직/섹터)
+    micron: list[SeriesDataPoint] = Field(default_factory=list)
+    sk_hynix: list[SeriesDataPoint] = Field(default_factory=list)
+    samsung: list[SeriesDataPoint] = Field(default_factory=list)
+    sox: list[SeriesDataPoint] = Field(default_factory=list)
+    nvda: list[SeriesDataPoint] = Field(default_factory=list)
+    avgo: list[SeriesDataPoint] = Field(default_factory=list)
+    # 코스피 저점 판정기용
+    kospi: list[SeriesDataPoint] = Field(default_factory=list)
+    kospi_monthly: list[SeriesDataPoint] = Field(default_factory=list)  # 전체이력 월봉
     # 메타
     fetched_at: Optional[str] = None
     errors: list[str] = Field(default_factory=list)
@@ -78,4 +88,5 @@ FRED_SERIES_CONFIG = [
     {"id": "PSAVERT", "name": "개인저축률", "months": 360},
     {"id": "SAHMREALTIME", "name": "Sahm Rule 지표", "months": 360},
     {"id": "DRTSCILM", "name": "은행 대출기준 강화 (대기업)", "months": 360},
+    {"id": "PCU334413334413", "name": "반도체 PPI (물가)", "months": 360},
 ]

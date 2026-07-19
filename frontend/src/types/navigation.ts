@@ -7,6 +7,7 @@ export interface MenuItem {
   icon: string; // SVG path data
   component: ComponentType<Record<string, unknown>>;
   description?: string;
+  section?: string; // 사이드바 그룹 헤더
 }
 
 export interface SidebarProps {

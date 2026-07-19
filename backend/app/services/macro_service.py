@@ -12,10 +12,25 @@ from .signal_engine import SignalEngine, signal_engine
 from ..models.macro_schemas import SeriesDataPoint, MacroRawData
 from ..models.signal_schemas import SignalResult, SignalHistoryEntry, SignalStatus
 from .recession_warning import RecessionWarningEngine, recession_warning_engine
+from .kofia_fetcher import kofia_fetcher
+from .naver_flow_fetcher import naver_flow_fetcher
+from .silicon_analysts_fetcher import silicon_analysts_fetcher
+from .bigtech_capex_fetcher import bigtech_capex_fetcher
+from .customs_export_fetcher import customs_export_fetcher
 
 logger = logging.getLogger(__name__)
 
 VALID_CATEGORIES = {"business_cycle", "liquidity", "sentiment", "valuation", "technical", "labor_household"}
+
+# 빅테크 캐펙스 가이던스 대상 (리포트 핵심 판별자) — (id, 라벨, 실적/근거)
+CAPEX_COMPANIES = [
+    ("alphabet", "Alphabet", "7/23"),
+    ("microsoft", "Microsoft", ""),
+    ("meta", "Meta", ""),
+    ("amazon", "Amazon", ""),
+    ("tsmc", "TSMC", "보고"),
+    ("broadcom", "Broadcom", "보고"),
+]
 
 # 한국 표준시 (UTC+9)
 KST = timezone(timedelta(hours=9))
@@ -45,6 +60,17 @@ class MacroService:
         self.calc: MacroCalculator = macro_calculator
         self.engine: SignalEngine = signal_engine
         self._elliott_count: int = 0
+        # 반도체 레짐 수동입력 — 리포트의 펀더멘탈 요소가 본체 (주가는 선행 보조 프록시)
+        # 캐펙스 가이던스(핵심 판별자) + D램 가격 상승률(엔진 기울기). 기본값 = 2026.7 리포트 상태.
+        self._capex_companies: dict[str, str] = {
+            "alphabet": "flat", "microsoft": "flat", "meta": "up",
+            "amazon": "flat", "tsmc": "up", "broadcom": "down",
+        }
+        self._dram_yoy: float = 15.0        # D램 가격 상승률 % (리포트: +70% → +15%)
+        self._dram_momentum: str = "decel"  # "accel"(가속) | "decel"(감속)
+        # 코스피 저점 판정기 수동입력 (신용잔고 추이 + 반대매매) — KRX 실연동 전 수동
+        self._credit_trend: str = "falling"   # "rising"(증가) | "falling"(청산중) | "stalling"(멈춤)
+        self._forced_selling: str = "normal"  # "spike"(급증) | "normal" | "easing"(진정)
         self._signal_history: list[dict] = []
         self._last_signals: dict[int, SignalStatus] = {}
         self.warning_engine: RecessionWarningEngine = recession_warning_engine
@@ -53,6 +79,10 @@ class MacroService:
         self._dashboard_cached_at: Optional[datetime] = None
         self._category_cache: dict[str, dict] = {}
         self._category_cached_at: dict[str, datetime] = {}
+        self._kospi_cache: Optional[dict] = None
+        self._kospi_cached_at: Optional[datetime] = None
+        self._nasdaq_cache: Optional[dict] = None
+        self._nasdaq_cached_at: Optional[datetime] = None
 
     def get_dashboard(self) -> dict:
         """대시보드 데이터: 종합 판정 + 카테고리 요약 + 시그널 (KST 06:00 일간 캐시)"""
@@ -83,6 +113,9 @@ class MacroService:
         # 코스톨라니 달걀모델
         kostolany = self._kostolany_egg(raw, indicators)
 
+        # 반도체 레짐 판정기
+        semiconductor = self._semiconductor_regime(raw, indicators)
+
         result = {
             "overall": {
                 "score": score,
@@ -94,6 +127,7 @@ class MacroService:
             "categories": categories,
             "recession_warning": recession_warning,
             "kostolany": kostolany,
+            "semiconductor": semiconductor,
         }
 
         # 캐시 저장
@@ -131,6 +165,13 @@ class MacroService:
             result["DXY"] = {"series_id": "DXY", "name": "Dollar Index", "data": [
                 {"date": p.date, "value": p.value} for p in raw.dxy
             ], "status": "live"}
+            # 나스닥 월봉 (M2 유동성 국면 오버레이용)
+            nq = self._points_to_pd(raw.nasdaq_weekly)
+            if nq is not None and len(nq) > 0:
+                nqm = nq.resample("MS").last().dropna()
+                result["NASDAQ"] = {"series_id": "NASDAQ", "name": "NASDAQ", "data": [
+                    {"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1)} for idx, v in nqm.items()
+                ], "status": "live"}
 
         # 캐시 저장
         self._category_cache[category] = result
@@ -143,10 +184,76 @@ class MacroService:
         """시그널 상태 변경 이력"""
         return self._signal_history
 
+    def get_kospi_bottom(self, force: bool = False) -> dict:
+        """코스피 저점 판정 (파라볼릭 되돌림 + 낙폭 밴드 + 신용/반대매매, KST 06:00 캐시)
+
+        force=True 시 캐시를 무시하고 즉시 재취득 (새로고침 버튼용).
+        """
+        if not force and self._kospi_cache is not None and _is_cache_valid(self._kospi_cached_at):
+            logger.info("KOSPI bottom cache hit")
+            return self._kospi_cache
+
+        raw = self.fetcher.fetch_all()
+        result = self._compute_kospi_bottom(raw)
+        self._kospi_cache = result
+        self._kospi_cached_at = datetime.now(KST)
+        return result
+
+    def get_nasdaq_bottom(self, force: bool = False) -> dict:
+        """나스닥 저점 판정 (파라볼릭 되돌림 + 낙폭 밴드 + 역대 약세장, KST 06:00 캐시)"""
+        if not force and self._nasdaq_cache is not None and _is_cache_valid(self._nasdaq_cached_at):
+            return self._nasdaq_cache
+        raw = self.fetcher.fetch_all()
+        result = self._compute_nasdaq_bottom(raw)
+        self._nasdaq_cache = result
+        self._nasdaq_cached_at = datetime.now(KST)
+        return result
+
+    def set_kospi_manual(self, credit: str, forced: str) -> dict:
+        """코스피 저점 수동입력: 신용잔고 추이 + 반대매매 (KRX 실연동 전)"""
+        if credit not in ("rising", "falling", "stalling"):
+            raise ValueError(f"invalid credit: {credit}")
+        if forced not in ("spike", "normal", "easing"):
+            raise ValueError(f"invalid forced: {forced}")
+        self._credit_trend = credit
+        self._forced_selling = forced
+        self._kospi_cache = None
+        self._kospi_cached_at = None
+        return {"credit": credit, "forced": forced, "ok": True}
+
     def set_elliott_count(self, count: int) -> dict:
         """엘리엇 파동 수동 입력"""
         self._elliott_count = count
         return {"elliott_count": count, "status": "updated"}
+
+    def set_capex_company(self, company: str, status: str) -> dict:
+        """빅테크 캐펙스 가이던스 수동 입력 (리포트 핵심 판별자)
+
+        - status: "up"(상향/유지) | "flat"(중립) | "down"(둔화/하향)
+        빅테크별 상태를 종합해 수요축(expand/slow)을 도출. 변경 시 캐시 즉시 무효화.
+        """
+        if company not in self._capex_companies:
+            raise ValueError(f"unknown company: {company}")
+        if status not in ("up", "flat", "down"):
+            raise ValueError(f"invalid status: {status}")
+        self._capex_companies[company] = status
+        self._dashboard_cache = None
+        self._dashboard_cached_at = None
+        return {"company": company, "status": status, "ok": True}
+
+    def set_dram(self, yoy: float, momentum: str) -> dict:
+        """D램 가격 상승률 수동 입력 (엔진 기울기)
+
+        - yoy: 상승률 % (예: 15.0)
+        - momentum: "accel"(가속) | "decel"(감속)
+        """
+        if momentum not in ("accel", "decel"):
+            raise ValueError(f"invalid momentum: {momentum}")
+        self._dram_yoy = yoy
+        self._dram_momentum = momentum
+        self._dashboard_cache = None
+        self._dashboard_cached_at = None
+        return {"yoy": yoy, "momentum": momentum, "ok": True}
 
     # ─── 내부 메서드 ───
 
@@ -692,6 +799,467 @@ class MacroService:
                 "vix": round(vix, 1) if vix is not None else None,
                 "sentiment": sentiment,
             },
+        }
+
+    # ─── 반도체 레짐 판정기 ───
+
+    def _recent_return(self, points: list, days: int = 63) -> Optional[float]:
+        """최근 N거래일 수익률 % (기본 63일 ≈ 3개월)"""
+        s = self._points_to_pd(points)
+        if s is None or len(s) < days + 1:
+            return None
+        past = float(s.iloc[-days - 1])
+        if past == 0:
+            return None
+        return round((float(s.iloc[-1]) / past - 1) * 100, 2)
+
+    def _basket_index(self, points_lists: list) -> Optional[pd.Series]:
+        """여러 종목 → 공통 날짜 정렬 후 시작=100 정규화 평균 지수"""
+        cols = [self._points_to_pd(p) for p in points_lists]
+        cols = [c for c in cols if c is not None and len(c) > 0]
+        if not cols:
+            return None
+        df = pd.concat(cols, axis=1).dropna()
+        if df.empty or len(df) < 2:
+            return None
+        df = df / df.iloc[0] * 100.0
+        return df.mean(axis=1)
+
+    def _semiconductor_regime(self, raw: MacroRawData, indicators: dict) -> dict:
+        """반도체 레짐 = AI 반도체 사이클 고점 '선행' 판독
+
+        선행(펀더멘탈·주축): 빅테크 캐펙스 증가율(수요) + D램 가격(공급) — 사이클을 선행
+        확인(주가·동행): 메모리/로직 과열·상대강도·모멘텀·RSI — 선행 신호를 확인
+        고점위험 스코어 = 선행(최대 60) + 확인(최대 40)
+        """
+        # ══ 선행 신호 (펀더멘탈) ══
+        leading: list[dict] = []
+        lead_score = 0
+
+        # 1) 빅테크 캐펙스 증가율 (AI 수요 최상류·선행)
+        capex = bigtech_capex_fetcher.get_capex()
+        cap_g, cap_accel = capex.get("growth_qoq"), capex.get("accelerating")
+        if cap_g is not None:
+            if cap_g < 0:
+                st, pts = "감소", 35
+            elif cap_accel is False:
+                st, pts = "증가율 둔화", 25
+            else:
+                st, pts = "가속", 0
+            lead_score += pts
+            leading.append({
+                "key": "capex", "label": "빅테크 캐펙스", "status": st,
+                "value": f"QoQ {cap_g:+.0f}%",
+                "detail": f"합계 ${capex.get('total_latest')}B",
+            })
+
+        # 2) D램 가격 (선행 가격): DDR4 스팟 방향 + 반도체 PPI YoY
+        ddr = silicon_analysts_fetcher.get_dram_ddr4()
+        spot = ddr.get("spot", {})
+        spot_dir, spot_val = spot.get("direction"), spot.get("latest")
+        ppi = self._series_to_pd(raw.fred_series.get("PCU334413334413"))
+        ppi_yoy = None
+        if ppi is not None and len(ppi) >= 13:
+            yoy = self.calc.yoy_percent(ppi).dropna()
+            if len(yoy):
+                ppi_yoy = round(float(yoy.iloc[-1]), 1)
+        if spot_dir is not None or ppi_yoy is not None:
+            if spot_dir == "falling" or (ppi_yoy is not None and ppi_yoy < 0):
+                st, pts = "꺾임", 25
+            elif spot_dir == "rising":
+                st, pts = "상승", 5
+            else:
+                st, pts = "보합", 0
+            lead_score += pts
+            leading.append({
+                "key": "dram", "label": "D램 가격", "status": st,
+                "value": f"DDR4 ${spot_val}" if spot_val is not None else "N/A",
+                "detail": f"반도체 PPI YoY {ppi_yoy:+.0f}%" if ppi_yoy is not None else "PPI N/A",
+            })
+
+        # 3) 한국 반도체 수출 YoY (글로벌 반도체 사이클 선행지수)
+        kr_exp = customs_export_fetcher.get_semiconductor_export()
+        exp_yoy = kr_exp.get("yoy") if kr_exp.get("available") else None
+        if exp_yoy is not None:
+            if exp_yoy < 0:
+                st, pts = "감소", 25
+            elif exp_yoy < 10:
+                st, pts = "둔화", 12
+            else:
+                st, pts = "견조", 0
+            lead_score += pts
+            leading.append({
+                "key": "kr_export", "label": "한국 반도체 수출", "status": st,
+                "value": f"YoY {exp_yoy:+.0f}%",
+                "detail": f"{kr_exp.get('latest_period')} {kr_exp.get('latest_value')}억$",
+            })
+
+        # ══ 확인 신호 (주가·동행) ══
+        mem = self._basket_index([raw.micron, raw.sk_hynix, raw.samsung])
+        logic = self._basket_index([raw.nvda, raw.avgo])
+
+        def ret(s, days: int, offset: int = 0):
+            if s is None or len(s) < days + offset + 1:
+                return None
+            a = float(s.iloc[-1 - offset - days])
+            b = float(s.iloc[-1 - offset])
+            return round((b / a - 1) * 100, 1) if a else None
+
+        mem_6m, mem_3m = ret(mem, 126), ret(mem, 63)
+        mem_1m, mem_prev1m = ret(mem, 21), ret(mem, 21, offset=21)
+        logic_3m = ret(logic, 63)
+        sox_mom = ret(self._points_to_pd(raw.sox), 63)
+        dist200 = None
+        if mem is not None and len(mem) >= 200:
+            sma = self.calc.sma(mem, 200).iloc[-1]
+            if pd.notna(sma) and sma:
+                dist200 = round((float(mem.iloc[-1]) / float(sma) - 1) * 100, 1)
+        rsi = None
+        if mem is not None and len(mem) > 20:
+            rs = self.calc.rsi(mem)
+            if len(rs) and pd.notna(rs.iloc[-1]):
+                rsi = round(float(rs.iloc[-1]), 1)
+        spread_now = round(mem_3m - logic_3m, 1) if (mem_3m is not None and logic_3m is not None) else None
+        m3p, l3p = ret(mem, 63, offset=21), ret(logic, 63, offset=21)
+        spread_prev = round(m3p - l3p, 1) if (m3p is not None and l3p is not None) else None
+
+        confirm: list[dict] = []
+        conf_score = 0
+        # 과열도 (파라볼릭)
+        if mem_6m is not None or dist200 is not None:
+            if (mem_6m is not None and mem_6m > 80) or (dist200 is not None and dist200 > 40):
+                st, pts = "극단", 15
+            elif (mem_6m is not None and mem_6m > 50) or (dist200 is not None and dist200 > 25):
+                st, pts = "과열", 8
+            else:
+                st, pts = "정상", 0
+            conf_score += pts
+            confirm.append({"key": "overheat", "label": "과열도", "status": st,
+                            "value": f"6M {mem_6m:+.0f}%" if mem_6m is not None else "N/A",
+                            "detail": f"200일 이격 {dist200:+.0f}%" if dist200 is not None else ""})
+        # 상대강도 롤오버
+        if spread_now is not None and spread_prev is not None:
+            if spread_now < spread_prev - 3:
+                st, pts = "롤오버", 12
+            elif spread_now > spread_prev:
+                st, pts = "가속", 0
+            else:
+                st, pts = "정점", 6
+            conf_score += pts
+            confirm.append({"key": "rs", "label": "상대강도", "status": st,
+                            "value": f"{spread_now:+.0f}%p", "detail": f"21일전 {spread_prev:+.0f}%p"})
+        # 모멘텀 감속
+        if mem_1m is not None and mem_prev1m is not None:
+            st, pts = ("감속", 8) if mem_1m < mem_prev1m - 2 else ("가속", 0)
+            conf_score += pts
+            confirm.append({"key": "accel", "label": "모멘텀", "status": st,
+                            "value": f"1M {mem_1m:+.0f}%", "detail": f"직전 {mem_prev1m:+.0f}%"})
+        # RSI
+        if rsi is not None:
+            st, pts = ("과매수", 5) if rsi > 75 else ("경계", 3) if rsi > 70 else ("중립", 0)
+            conf_score += pts
+            confirm.append({"key": "rsi", "label": "RSI(14)", "status": st,
+                            "value": f"{rsi:.0f}", "detail": "메모리 바스켓"})
+
+        score = min(100, lead_score + conf_score)
+
+        # ── 국면 판정 ──
+        if mem_3m is not None and mem_3m < -8:
+            phase = "DOWNTURN"
+        elif score >= 60:
+            phase = "TOP_WARNING"
+        elif score >= 40:
+            phase = "OVERHEAT"
+        elif score >= 20:
+            phase = "LATE_EXPANSION"
+        else:
+            phase = "EXPANSION"
+
+        phase_info = {
+            "EXPANSION":      {"name": "확장", "desc": "선행·확인 신호 양호. 사이클 상승 초·중기.",
+                               "action": "보유/매수", "color": "#10b981"},
+            "LATE_EXPANSION": {"name": "확장 후기", "desc": "일부 둔화/과열 신호 점등. 경계 시작.",
+                               "action": "보유·경계", "color": "#f59e0b"},
+            "OVERHEAT":       {"name": "과열 주의", "desc": "펀더멘탈 둔화 또는 주가 과열 다수. 고점 구간 진입 가능.",
+                               "action": "비중축소 검토", "color": "#f97316"},
+            "TOP_WARNING":    {"name": "고점 경고", "desc": "캐펙스 증가율 둔화 + D램 꺾임 + 주가 롤오버 동조. 선행 고점 신호.",
+                               "action": "차익실현/헤지", "color": "#ef4444"},
+            "DOWNTURN":       {"name": "하강", "desc": "메모리 이미 3개월 하락. 사이클 꺾임 확인.",
+                               "action": "현금/관망", "color": "#a78bfa"},
+        }
+        info = phase_info[phase]
+
+        return {
+            "phase": phase,
+            "name": info["name"],
+            "desc": info["desc"],
+            "action": info["action"],
+            "color": info["color"],
+            "top_risk_score": score,
+            "lead_score": lead_score,
+            "conf_score": conf_score,
+            # 선행(펀더멘탈) / 확인(주가)
+            "leading_signals": leading,
+            "confirm_signals": confirm,
+            # 참고: 캐펙스·D램·HBM 실데이터
+            "capex": {
+                "total_latest": capex.get("total_latest"),
+                "growth_qoq": cap_g, "accelerating": cap_accel,
+                "companies": capex.get("companies", []),
+            },
+            "dram_ref": {
+                "ddr4_spot": spot_val, "ddr4_spot_dir": spot_dir,
+                "ddr4_contract": ddr.get("contract", {}).get("latest"),
+                "ppi_yoy": ppi_yoy,
+                "hbm_gen": silicon_analysts_fetcher.get_hbm_price().get("latest_gen"),
+                "hbm_value": silicon_analysts_fetcher.get_hbm_price().get("latest_value"),
+            },
+            "proxy": {
+                "mem_avg": mem_3m, "logic_avg": logic_3m,
+                "mem_vs_logic": spread_now, "sox_mom": sox_mom,
+            },
+        }
+
+    # ─── 코스피 저점 판정기 ───
+
+    def _derive_credit_trend(self, series: list[dict]) -> Optional[str]:
+        """신용잔고 시계열 → 추세 (rising/falling/stalling). 데이터 부족 시 None."""
+        vals = [p["value"] for p in series if p.get("value") is not None]
+        if len(vals) < 4:
+            return None
+        base = vals[-4]
+        pct = (vals[-1] - base) / base * 100 if base else 0.0
+        last_step = vals[-1] - vals[-2]
+        if abs(pct) < 0.3:
+            return "stalling"          # 4구간 변화 미미 → 정체
+        if pct < 0:
+            return "stalling" if last_step >= 0 else "falling"  # 감소하나 마지막 반등 → 멈춤
+        return "rising"
+
+    def _derive_forced_selling(self, series: list[dict]) -> Optional[str]:
+        """반대매매 금액 시계열 → 상태 (spike/normal/easing). 데이터 부족 시 None."""
+        import statistics
+        amts = [p["amount"] for p in series if p.get("amount") is not None]
+        if len(amts) < 8:
+            return None
+        window = amts[-20:] if len(amts) >= 20 else amts
+        baseline = statistics.median(window[:-1]) if len(window) > 1 else window[0]
+        if not baseline or baseline <= 0:
+            baseline = max(1.0, statistics.mean(window))
+        latest = amts[-1]
+        recent_max = max(amts[-5:])
+        if latest >= baseline * 2:
+            return "spike"          # 평소 2배 이상 → 급증
+        if recent_max >= baseline * 2 and latest <= recent_max * 0.6:
+            return "easing"         # 급증했다 60% 이하로 진정
+        return "normal"
+
+    def _compute_kospi_bottom(self, raw: MacroRawData) -> dict:
+        """파라볼릭 되돌림 + 낙폭 밴드 + 신용/반대매매 → 저점 판정
+
+        반도체 레짐(피크·CASE1 vs 하강·CASE2)이 되돌림 밴드를 분기:
+          - 피크·CASE1 → 비리세션 밴드 (-19~-37%)
+          - 하강·CASE2 → 리세션 밴드 (-37~-55%+)
+        """
+        kospi = self._points_to_pd(raw.kospi)
+        if kospi is None or len(kospi) < 60:
+            return {"available": False}
+
+        peak_val = float(kospi.max())
+        peak_date = kospi.idxmax()
+        current_val = float(kospi.iloc[-1])
+        drawdown = round((current_val / peak_val - 1) * 100, 1)
+
+        # 파라볼릭 base = peak 이전 최저점 (상승 가속 시작점)
+        before = kospi.loc[:peak_date]
+        base_val = float(before.min())
+        base_date = before.idxmin()
+        rise = peak_val - base_val
+
+        def lvl(frac: float) -> float:
+            return round(peak_val - frac * rise, 1)
+
+        retracement = {
+            "peak": round(peak_val, 1),
+            "fib382": lvl(0.382),
+            "fib50": lvl(0.5),
+            "fib618": lvl(0.618),
+            "base": round(base_val, 1),
+        }
+        retr_pct = round((peak_val - current_val) / rise * 100, 1) if rise > 0 else None
+
+        # 반도체 레짐 → 밴드 분기
+        regime = self._semiconductor_regime(raw, {})
+        phase = regime["phase"]
+        applied = "recession" if phase in ("DOWNTURN", "UNSTABLE") else "non_recession"
+        if applied == "non_recession":
+            band_high_price = round(peak_val * (1 - 0.19), 1)  # 얕은 쪽
+            band_low_price = round(peak_val * (1 - 0.37), 1)   # 깊은 쪽
+        else:
+            band_high_price = round(peak_val * (1 - 0.37), 1)
+            band_low_price = round(peak_val * (1 - 0.55), 1)
+
+        # 신용잔고: KOFIA 자동 시계열이 있으면 추세 자동 도출, 없으면 수동 폴백
+        credit_series = kofia_fetcher.get_credit_balance() if kofia_fetcher.enabled else []
+        auto_credit = self._derive_credit_trend(credit_series)
+        if auto_credit:
+            credit = auto_credit
+            credit_source = "auto"
+        else:
+            credit = self._credit_trend
+            credit_source = "manual"
+        credit_latest = credit_series[-1]["value"] if credit_series else None
+
+        # 반대매매: KOFIA 증시자금(미수금 반대매매) 자동, 없으면 수동 폴백
+        forced_series = kofia_fetcher.get_forced_selling() if kofia_fetcher.enabled else []
+        auto_forced = self._derive_forced_selling(forced_series)
+        if auto_forced:
+            forced = auto_forced
+            forced_source = "auto"
+        else:
+            forced = self._forced_selling
+            forced_source = "manual"
+        forced_latest = forced_series[-1] if forced_series else None
+        band_reached = drawdown <= (-19 if applied == "non_recession" else -37)
+        confirm = int(credit == "stalling") + int(forced == "easing")
+
+        if applied == "recession" and drawdown > -37:
+            verdict, vcolor = "저점 미도래 (현금 유지)", "#ef4444"
+        elif band_reached and confirm >= 2:
+            verdict, vcolor = "저점 근접 (분할 준비)", "#10b981"
+        elif band_reached and confirm == 1:
+            verdict, vcolor = "저점 구간 진입 (관찰)", "#f59e0b"
+        else:
+            verdict, vcolor = "되돌림 진행 중 (관망)", "#f97316"
+
+        # 투자자 수급 (외국인/기관/개인 일별 순매수, 네이버)
+        investor_flow = naver_flow_fetcher.get_investor_flow()
+
+        # 차트용 다운샘플 (주봉 근사)
+        weekly = kospi.iloc[::5]
+        price = [
+            {"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1)}
+            for idx, v in weekly.items()
+        ]
+        # 전체이력 월봉 (역대 약세장 오버레이용)
+        monthly = self._points_to_pd(raw.kospi_monthly)
+        price_full = (
+            [{"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1)} for idx, v in monthly.items()]
+            if monthly is not None else []
+        )
+
+        return {
+            "available": True,
+            "price": price,
+            "price_full": price_full,
+            "peak": {"date": peak_date.strftime("%Y-%m-%d"), "value": round(peak_val, 1)},
+            "base": {"date": base_date.strftime("%Y-%m-%d"), "value": round(base_val, 1)},
+            "current": round(current_val, 1),
+            "drawdown_pct": drawdown,
+            "retracement": retracement,
+            "retracement_pct": retr_pct,
+            "bands": {
+                "non_recession": {"low": -19.0, "high": -37.0},
+                "recession": {"low": -37.0, "high": -55.0},
+                "applied": applied,
+            },
+            "band_target": {"high": band_high_price, "low": band_low_price},
+            "regime": {"phase": phase, "name": regime["name"], "color": regime["color"]},
+            "credit_trend": credit,
+            "credit_source": credit_source,
+            "credit_latest": credit_latest,
+            "credit_series": credit_series[-40:],
+            "forced_selling": forced,
+            "forced_source": forced_source,
+            "forced_amount": (forced_latest or {}).get("amount") if forced_latest else None,
+            "forced_ratio": (forced_latest or {}).get("ratio") if forced_latest else None,
+            "forced_series": forced_series[-40:],
+            "investor_flow": investor_flow,
+            "verdict": verdict,
+            "verdict_color": vcolor,
+        }
+
+    def _compute_nasdaq_bottom(self, raw: MacroRawData) -> dict:
+        """나스닥 파라볼릭 되돌림 + 낙폭 밴드 (반도체 레짐이 밴드 분기)
+
+        나스닥 밴드(리포트): 비리세션 -19~-37%, 리세션 -31~-78%.
+        '-20% 돌파 = CASE 2(감익 사이클) 확률 급등' 트리거 포함.
+        한국 전용(수급/신용/반대매매)은 없음.
+        """
+        ixic = self._points_to_pd(raw.nasdaq_weekly)  # 주봉, max
+        if ixic is None or len(ixic) < 30:
+            return {"available": False}
+
+        # 파라볼릭: 최근 5년 창
+        cutoff = ixic.index[-1] - pd.DateOffset(years=5)
+        recent = ixic[ixic.index >= cutoff]
+        if len(recent) < 10:
+            recent = ixic
+
+        peak_val = float(recent.max())
+        peak_date = recent.idxmax()
+        current_val = float(ixic.iloc[-1])
+        drawdown = round((current_val / peak_val - 1) * 100, 1)
+
+        before = recent.loc[:peak_date]
+        base_val = float(before.min())
+        base_date = before.idxmin()
+        rise = peak_val - base_val
+
+        def lvl(frac: float) -> float:
+            return round(peak_val - frac * rise, 1)
+
+        retracement = {"peak": round(peak_val, 1), "fib382": lvl(0.382),
+                       "fib50": lvl(0.5), "fib618": lvl(0.618), "base": round(base_val, 1)}
+        retr_pct = round((peak_val - current_val) / rise * 100, 1) if rise > 0 else None
+
+        # 반도체 레짐 → 밴드
+        regime = self._semiconductor_regime(raw, {})
+        phase = regime["phase"]
+        applied = "recession" if phase in ("DOWNTURN", "UNSTABLE") else "non_recession"
+        if applied == "non_recession":
+            band_high_price = round(peak_val * (1 - 0.19), 1)
+            band_low_price = round(peak_val * (1 - 0.37), 1)
+        else:
+            band_high_price = round(peak_val * (1 - 0.31), 1)
+            band_low_price = round(peak_val * (1 - 0.78), 1)
+
+        # -20% 돌파 = CASE 2 트리거
+        breach20 = drawdown <= -20
+        if breach20:
+            verdict, vcolor = "리세션 경보 (-20% 돌파)", "#ef4444"
+        elif drawdown > -10:
+            verdict, vcolor = "조정 문턱 (관망)", "#f59e0b"
+        elif drawdown <= (-19 if applied == "non_recession" else -31):
+            verdict, vcolor = "저점 밴드 진입", "#10b981"
+        else:
+            verdict, vcolor = "되돌림 진행 중", "#f97316"
+
+        # 차트: 최근 주봉 + 전체이력 월봉
+        price = [{"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1)} for idx, v in recent.items()]
+        monthly = ixic.resample("MS").last().dropna()
+        price_full = [{"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1)} for idx, v in monthly.items()]
+
+        return {
+            "available": True,
+            "price": price,
+            "price_full": price_full,
+            "peak": {"date": peak_date.strftime("%Y-%m-%d"), "value": round(peak_val, 1)},
+            "base": {"date": base_date.strftime("%Y-%m-%d"), "value": round(base_val, 1)},
+            "current": round(current_val, 1),
+            "drawdown_pct": drawdown,
+            "retracement": retracement,
+            "retracement_pct": retr_pct,
+            "bands": {
+                "non_recession": {"low": -19.0, "high": -37.0},
+                "recession": {"low": -31.0, "high": -78.0},
+                "applied": applied,
+            },
+            "band_target": {"high": band_high_price, "low": band_low_price},
+            "regime": {"phase": phase, "name": regime["name"], "color": regime["color"]},
+            "breach20": breach20,
+            "verdict": verdict,
+            "verdict_color": vcolor,
         }
 
     # ─── 유틸 ───

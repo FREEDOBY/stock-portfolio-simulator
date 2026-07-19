@@ -37,6 +37,17 @@ export function LiquidityTab({ data, crisisOverlays = [] }: Props) {
     'YoY%': i >= 12 ? ((d.value - m2Raw[i - 12].value) / m2Raw[i - 12].value) * 100 : null,
   }));
 
+  // 유동성 국면: M2 증감률(YoY%) + 나스닥 오버레이 (자산 vs 유동성)
+  const nasdaqRaw = data['NASDAQ']?.data || [];
+  const nasdaqByMonth = new Map<string, number>();
+  nasdaqRaw.forEach((d) => nasdaqByMonth.set(d.date.substring(0, 7), d.value));
+  const m2RegimeData = m2Raw.map((d, i) => ({
+    date: d.date.substring(0, 7),
+    'M2 증감률%': i >= 12 ? ((d.value - m2Raw[i - 12].value) / m2Raw[i - 12].value) * 100 : null,
+    NASDAQ: nasdaqByMonth.get(d.date.substring(0, 7)) ?? null,
+  }));
+  const latestM2Yoy = [...m2RegimeData].reverse().find((d) => d['M2 증감률%'] !== null)?.['M2 증감률%'] ?? null;
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -85,6 +96,26 @@ export function LiquidityTab({ data, crisisOverlays = [] }: Props) {
           height={280}
         />
       </TabChartSection>
+
+      {/* 유동성 국면: M2 증감률 + 나스닥 오버레이 */}
+      {nasdaqRaw.length > 0 && (
+        <TabChartSection
+          title={`유동성 국면 · M2 증감률 vs NASDAQ${latestM2Yoy !== null ? ` (최근 ${latestM2Yoy > 0 ? '+' : ''}${latestM2Yoy.toFixed(1)}%)` : ''}`}
+          description={"M2 증감률(YoY) + 나스닥 오버레이 — 유동성이 자산가격을 이끄는지 확인\n• M2 증감률 0% 아래(빨간선) = 유동성 수축 → 위험자산 바닥/스트레스\n• 음수→플러스 전환 = 유동성 저점 = 위험자산 바닥 신호\n• 2015·2018·2022 유동성 수축 구간이 시장 스트레스와 동행"}
+        >
+          <MacroLineChart crisisOverlays={crisisOverlays}
+            data={m2RegimeData}
+            series={[
+              { dataKey: 'M2 증감률%', color: '#10b981', name: 'M2 증감률%', type: 'area', yAxisId: 'left' },
+              { dataKey: 'NASDAQ', color: '#06b6d4', name: 'NASDAQ', yAxisId: 'right' },
+            ]}
+            yAxisFormatter={(v) => `${v.toFixed(0)}%`}
+            rightYAxisFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+            referenceLines={[{ y: 0, color: '#ef4444', label: '수축', yAxisId: 'left' }]}
+            height={280}
+          />
+        </TabChartSection>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* 연준 대차대조표 */}

@@ -44,6 +44,14 @@ class MacroDataFetcher:
             nasdaq_daily=yahoo_data.get("nasdaq_daily", []),
             vix=yahoo_data.get("vix", []),
             dxy=yahoo_data.get("dxy", []),
+            micron=yahoo_data.get("micron", []),
+            sk_hynix=yahoo_data.get("sk_hynix", []),
+            samsung=yahoo_data.get("samsung", []),
+            sox=yahoo_data.get("sox", []),
+            nvda=yahoo_data.get("nvda", []),
+            avgo=yahoo_data.get("avgo", []),
+            kospi=yahoo_data.get("kospi", []),
+            kospi_monthly=yahoo_data.get("kospi_monthly", []),
             fetched_at=datetime.now().isoformat(),
             errors=errors,
         )
@@ -99,6 +107,17 @@ class MacroDataFetcher:
             ("nasdaq_daily", "^IXIC", "1d", "1y"),
             ("vix", "^VIX", "1d", "max"),
             ("dxy", "DX-Y.NYB", "1d", "max"),
+            # 반도체 레짐용 (일간 2년)
+            ("micron", "MU", "1d", "2y"),
+            ("sk_hynix", "000660.KS", "1d", "2y"),
+            ("samsung", "005930.KS", "1d", "2y"),
+            ("sox", "^SOX", "1d", "2y"),
+            ("nvda", "NVDA", "1d", "2y"),
+            ("avgo", "AVGO", "1d", "2y"),
+            # 코스피 저점 판정기 (일간 5년 = 파라볼릭 base 포착)
+            ("kospi", "^KS11", "1d", "5y"),
+            # 전체이력 월봉 (역대 약세장 오버레이용, 1996~)
+            ("kospi_monthly", "^KS11", "1mo", "max"),
         ]
 
         for key, ticker, interval, period in yahoo_configs:

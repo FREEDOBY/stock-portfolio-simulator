@@ -37,45 +37,43 @@ export function Sidebar({
 
       {/* Menu Items */}
       <nav className="flex-1 py-2 overflow-y-auto">
-        {menuItems.map((item) => {
+        {menuItems.map((item, idx) => {
           const isActive = activeMenu === item.id;
+          const prev = menuItems[idx - 1];
+          const showSection = item.section && item.section !== prev?.section;
 
           return (
-            <button
-              key={item.id}
-              data-testid={`menu-item-${item.id}`}
-              onClick={() => onMenuChange(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-all duration-200 relative group ${
-                isActive
-                  ? 'bg-cyan-500/10 border-l-2 border-l-cyan-400 text-cyan-400'
-                  : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 border-l-2 border-l-transparent'
-              }`}
-              title={collapsed ? item.label : undefined}
-            >
-              {/* Icon */}
-              <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
-                <svg
-                  className="w-[18px] h-[18px]"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d={item.icon}
-                  />
-                </svg>
-              </div>
+            <div key={item.id}>
+              {/* 섹션 헤더 */}
+              {showSection &&
+                (collapsed ? (
+                  idx > 0 && <div className="mx-3 my-1.5 border-t border-slate-800/60" />
+                ) : (
+                  <div className="px-3 pt-3 pb-1 text-[10px] font-mono text-slate-600 uppercase tracking-widest">
+                    {item.section}
+                  </div>
+                ))}
 
-              {/* Label - 펼침 모드에서만 표시 */}
-              {!collapsed && (
-                <span className="text-sm font-mono uppercase tracking-wider">
-                  {item.label}
-                </span>
-              )}
-            </button>
+              <button
+                data-testid={`menu-item-${item.id}`}
+                onClick={() => onMenuChange(item.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-all duration-200 relative group ${
+                  isActive
+                    ? 'bg-cyan-500/10 border-l-2 border-l-cyan-400 text-cyan-400'
+                    : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 border-l-2 border-l-transparent'
+                }`}
+                title={collapsed ? item.label : undefined}
+              >
+                <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+                  <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={item.icon} />
+                  </svg>
+                </div>
+                {!collapsed && (
+                  <span className="text-sm font-mono uppercase tracking-wider">{item.label}</span>
+                )}
+              </button>
+            </div>
           );
         })}
       </nav>

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { DashboardData } from '../types/macro';
+import type { DashboardData, KospiBottomData, NasdaqBottomData } from '../types/macro';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -22,10 +22,14 @@ const cache: {
   dashboard: CacheEntry<DashboardData> | null;
   categories: Record<string, CacheEntry<Record<string, unknown>>>;
   signalHistory: CacheEntry<unknown[]> | null;
+  kospiBottom: CacheEntry<KospiBottomData> | null;
+  nasdaqBottom: CacheEntry<NasdaqBottomData> | null;
 } = {
   dashboard: null,
   categories: {},
   signalHistory: null,
+  kospiBottom: null,
+  nasdaqBottom: null,
 };
 
 function getResetBoundary(): number {
@@ -73,5 +77,45 @@ export const fetchSignalHistory = async () => {
 
 export const setElliottCount = async (count: number) => {
   const response = await api.post('/macro/elliott', { count });
+  return response.data;
+};
+
+export const setCapexCompany = async (
+  company: string,
+  status: 'up' | 'flat' | 'down',
+) => {
+  const response = await api.post('/macro/capex/company', { company, status });
+  cache.dashboard = null; // 캐시 무효화 → 다음 fetch에서 갱신
+  return response.data;
+};
+
+export const setDram = async (yoy: number, momentum: 'accel' | 'decel') => {
+  const response = await api.post('/macro/capex/dram', { yoy, momentum });
+  cache.dashboard = null;
+  return response.data;
+};
+
+export const fetchKospiBottom = async (force = false): Promise<KospiBottomData> => {
+  if (!force && isCacheValid(cache.kospiBottom)) return cache.kospiBottom.data;
+  const response = await api.get('/macro/kospi-bottom', {
+    params: force ? { refresh: true } : undefined,
+  });
+  cache.kospiBottom = { data: response.data, cachedAt: Date.now() };
+  return response.data;
+};
+
+export const fetchNasdaqBottom = async (): Promise<NasdaqBottomData> => {
+  if (isCacheValid(cache.nasdaqBottom)) return cache.nasdaqBottom.data;
+  const response = await api.get('/macro/nasdaq-bottom');
+  cache.nasdaqBottom = { data: response.data, cachedAt: Date.now() };
+  return response.data;
+};
+
+export const setKospiManual = async (
+  credit: 'rising' | 'falling' | 'stalling',
+  forced: 'spike' | 'normal' | 'easing',
+) => {
+  const response = await api.post('/macro/kospi/manual', { credit, forced });
+  cache.kospiBottom = null;
   return response.data;
 };
