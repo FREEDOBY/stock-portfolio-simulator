@@ -32,7 +32,10 @@ class CustomsExportFetcher:
         return bool(self._key)
 
     def _query(self, strt: str, end: str, cnty: str) -> list[tuple]:
-        """[(period, exp_usd)] — 실패/권한없음 시 []"""
+        """[(period, statCd, exp_usd)] — 실패/권한없음 시 []
+
+        cntyCd="" 조회 시 국가별 행 + 국가코드 '-'인 '월 총계' 행이 함께 옴.
+        """
         if not self._key:
             return []
         try:
@@ -46,10 +49,13 @@ class CustomsExportFetcher:
             for it in re.findall(r"<item>(.*?)</item>", r.text, re.S):
                 y = re.search(r"<year>(.*?)</year>", it)
                 e = re.search(r"<expDlr>(.*?)</expDlr>", it)
+                cd = re.search(r"<statCd>(.*?)</statCd>", it)
                 if y and e:
                     period = re.sub(r"[^0-9]", "", y.group(1))
+                    if len(period) != 6:  # 빈/기간총계 행 스킵
+                        continue
                     try:
-                        out.append((period, float(e.group(1).replace(",", ""))))
+                        out.append((period, (cd.group(1).strip() if cd else ""), float(e.group(1).replace(",", ""))))
                     except ValueError:
                         pass
             return out
@@ -58,46 +64,61 @@ class CustomsExportFetcher:
             return []
 
     def _monthly_total(self, strt: str, end: str) -> dict:
-        """기간 월별 반도체 수출 합계 {period: usd}. 총계 우선, 없으면 주요국 합산."""
-        total = self._query(strt, end, "")
-        if total:
+        """기간 월별 반도체 수출 총계 {period: usd}.
+
+        월 총계 행(statCd='-')만 사용 → 국가·HS하위코드 중복합산(이중계산) 방지.
+        총계 행 없으면 주요국 합산으로 폴백.
+        """
+        rows = self._query(strt, end, "")
+        if rows:
+            total = {p: v for p, code, v in rows if code == "-"}
+            if total:
+                return total
             agg: dict[str, float] = {}
-            for p, v in total:
+            for p, _code, v in rows:
                 agg[p] = agg.get(p, 0.0) + v
             return agg
         agg = {}
         for c in _DEST:
-            for p, v in self._query(strt, end, c):
+            for p, _code, v in self._query(strt, end, c):
                 agg[p] = agg.get(p, 0.0) + v
         return agg
 
+    @staticmethod
+    def _ym_offset(ym: str, months_back: int) -> str:
+        """YYYYMM에서 months_back개월 전 YYYYMM"""
+        y, m = int(ym[:4]), int(ym[4:])
+        t = y * 12 + (m - 1) - months_back
+        return f"{t // 12:04d}{t % 12 + 1:02d}"
+
     def get_semiconductor_export(self) -> dict:
-        """한국 반도체 수출 YoY + 최근 시계열"""
+        """한국 반도체 수출 YoY + 최근 시계열 (관세청 '1년 이내' 제약 → 12개월 창 2회)"""
         if not self._key:
             return {"available": False}
         now = datetime.now()
-        y, m = now.year, now.month
-        start = f"{y - 1:04d}{m:02d}"   # 약 13개월 전
-        end = f"{y:04d}{m:02d}"
-        agg = self._monthly_total(start, end)
-        if not agg:
+        end = f"{now.year:04d}{now.month:02d}"
+        start = self._ym_offset(end, 11)  # 최근 12개월 (1년 이내)
+        recent = {p: v for p, v in self._monthly_total(start, end).items() if len(p) == 6}
+        if not recent:
             return {"available": False}
 
-        series = [{"period": p, "value": round(v / 1e8, 1)} for p, v in sorted(agg.items())]  # 억달러
-        if len(series) < 13:
-            return {"available": True, "series": series, "yoy": None,
-                    "latest_period": series[-1]["period"] if series else None,
-                    "latest_value": series[-1]["value"] if series else None}
+        latest_p = max(recent)
+        latest_v = recent[latest_p]
 
-        latest = series[-1]
-        year_ago = series[-13]
-        yoy = round((latest["value"] / year_ago["value"] - 1) * 100, 1) if year_ago["value"] else None
+        # 1년 전 같은 월 (별도 2개월 창)
+        ya_end = self._ym_offset(latest_p, 12)
+        ya_start = self._ym_offset(ya_end, 1)
+        yearago = {p: v for p, v in self._monthly_total(ya_start, ya_end).items() if len(p) == 6}
+        ya_v = yearago.get(ya_end)
+        yoy = round((latest_v / ya_v - 1) * 100, 1) if ya_v else None
+
+        series = [{"period": p, "value": round(v / 1e8, 1)} for p, v in sorted(recent.items())]  # 억달러
         return {
             "available": True,
-            "series": series[-13:],
+            "series": series,
             "yoy": yoy,
-            "latest_period": latest["period"],
-            "latest_value": latest["value"],
+            "latest_period": latest_p,
+            "latest_value": round(latest_v / 1e8, 1),
         }
 
     def raw_sample(self) -> dict:
