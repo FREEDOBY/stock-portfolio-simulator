@@ -200,14 +200,14 @@ export function SemiconductorRegime({ data }: Props) {
         {data.ecos_series && data.ecos_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
             <ChartTitle
-              title="집적회로 수출물가지수 (달러 · 2020=100 · MoM % · 10년)"
-              info="한국은행 ECOS의 집적회로 수출물가지수(달러 기준, 월간, 10년)입니다. 한국 IC 수출은 D램·낸드가 지배하므로 D램 컨트랙트 가격의 공식 통계 프록시로 쓰입니다. 직전 사이클 고점(2017~18 슈퍼사이클, 2021)과 비교해보세요 — 두 번 모두 MoM 막대가 먼저 줄어들고 레벨이 뒤따라 꺾였습니다. 메모리 가격 신호의 주지표: YoY 마이너스 '꺾임'(20점), MoM 2개월 연속 둔화+반토막 '상승 둔화'(10점). 하단 바로 구간 확대 가능."
+              title="집적회로 수출물가지수 (달러 · 2020=100 · YoY % · 10년)"
+              info="한국은행 ECOS의 집적회로 수출물가지수(달러 기준, 월간, 10년)입니다. 한국 IC 수출은 D램·낸드가 지배하므로 D램 컨트랙트 가격의 공식 통계 프록시로 쓰입니다. 주황 라인(YoY)이 0 아래로 꺾이면 '꺾임'(20점) — 2019·2022 하강이 정확히 그 지점에서 시작됐습니다. '상승 둔화'(10점)는 MoM 상승률의 2개월 연속 감속(현재 점등 중)으로 계산되며 신호 카드에 표기됩니다. 하단 바로 구간 확대 가능."
             />
             <MacroLineChart
               data={data.ecos_series}
               series={[
                 { dataKey: 'value', color: '#a78bfa', name: 'IC 수출물가', type: 'area' },
-                { dataKey: 'mom', color: '#f59e0b', name: 'MoM %', type: 'bar', yAxisId: 'right' },
+                { dataKey: 'yoy', color: '#f59e0b', name: 'YoY %', yAxisId: 'right' },
               ]}
               height={240}
               yAxisFormatter={(v) => `${v.toFixed(0)}`}
@@ -314,14 +314,14 @@ export function SemiconductorRegime({ data }: Props) {
         {data.export_series && data.export_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
             <ChartTitle
-              title="한국 반도체 수출 (월별, 억$ · MoM %)"
-              info="관세청 무역통계의 월간 반도체(HS 8542) 수출액입니다. 익월 1일에 나오는 세계에서 가장 빠른 반도체 활동 실측(동행·조기확인)으로, 글로벌 반도체 경기의 카나리아 역할을 합니다. 주황 막대는 MoM 증감률 — 조업일수·계절성 영향이 커서 추세 참고용이며, 신호 점수는 YoY 기준입니다(마이너스 '감소' 10점, +10% 미만 '둔화' 5점)."
+              title="한국 반도체 수출 (월별, 억$ · YoY %)"
+              info="관세청 무역통계의 월간 반도체(HS 8542) 수출액입니다. 익월 1일에 나오는 세계에서 가장 빠른 반도체 활동 실측(동행·조기확인)으로, 글로벌 반도체 경기의 카나리아 역할을 합니다. 주황 막대는 월별 YoY 증감률 — 신호 점수와 같은 기준입니다(마이너스 '감소' 10점, +10% 미만 '둔화' 5점). YoY 막대가 줄어들기 시작하면 활동 모멘텀이 꺾이는 조기 경보입니다."
             />
             <MacroLineChart
               data={data.export_series}
               series={[
                 { dataKey: 'value', color: '#22d3ee', name: '수출 억$', type: 'area' },
-                { dataKey: 'mom', color: '#f59e0b', name: 'MoM %', type: 'bar', yAxisId: 'right', barSize: 24 },
+                { dataKey: 'yoy', color: '#f59e0b', name: 'YoY %', type: 'bar', yAxisId: 'right', barSize: 24 },
               ]}
               height={220}
               yAxisFormatter={(v) => `${v}억`}
