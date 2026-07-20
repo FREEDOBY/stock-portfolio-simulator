@@ -90,9 +90,11 @@ export interface SemiconductorData {
   color: string;
   top_risk_score: number;
   lead_score: number;
+  coin_score?: number;
   conf_score: number;
-  // 선행(펀더멘탈) / 확인(주가)
+  // 선행·전조 / 동행·조기확인 / 확인·주가
   leading_signals: LeadingSignal[];
+  coincident_signals?: LeadingSignal[];
   confirm_signals: LeadingSignal[];
   // 차트용 시계열
   capex_series?: Array<{ date: string; value: number; qoq: number | null }>;

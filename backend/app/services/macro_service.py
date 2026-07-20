@@ -830,12 +830,14 @@ class MacroService:
     def _semiconductor_regime(self, raw: MacroRawData, indicators: dict) -> dict:
         """반도체 레짐 = AI 반도체 사이클 고점 '선행' 판독
 
-        선행(펀더멘탈·주축, 최대 85): 빅테크 캐펙스 30 + 메모리 가격 합성 25
-          + TSMC 월매출 15 + 한국 수출 15 — 사이클을 선행
-        확인(주가·동행, 최대 40): 메모리/로직 과열·상대강도·모멘텀·RSI
-        고점위험 스코어 = min(100, 선행 + 확인)
+        선행·전조 (최대 60): 캐펙스 증가율 30 + 메모리 가격 합성 30 — 변곡을 앞서는 전조.
+          풀점등 = 60 = 단독으로 고점 경고 (선행 판독기의 최속 경로)
+        동행·조기확인 (최대 20): TSMC 월매출 10 + 한국 수출 10 — 사이클 활동 그 자체.
+          빠른 발표(익월 1일/10일)로 전조를 확정하는 역할, 단독 경고 불가
+        확인·주가 (최대 40): 과열·상대강도·모멘텀·RSI — 주가 동조 여부
+        고점위험 스코어 = min(100, 선행 + 동행 + 확인)
         """
-        # ══ 선행 신호 (펀더멘탈) ══
+        # ══ 선행·전조 (펀더멘탈) ══
         leading: list[dict] = []
         lead_score = 0
 
@@ -886,12 +888,12 @@ class MacroService:
         if main_val is not None or spot_dir is not None or hbm_dir is not None:
             pts = 0
             if main_val is not None and main_val < 0:
-                pts += 15
+                pts += 20
             if hbm_dir == "falling":
                 pts += 5
             if spot_dir == "falling":
                 pts += 5
-            if pts >= 15:
+            if pts >= 20:
                 st = "꺾임"
             elif pts >= 5:
                 st = "경계"
@@ -906,35 +908,39 @@ class MacroService:
                 "detail": f"HBM3E {_arrow(hbm_dir)} · DDR4 스팟 {_arrow(spot_dir)}",
             })
 
-        # 3) TSMC 월매출 YoY (AI 반도체 생산 최상류, 월간 — 캐펙스보다 빠른 경고)
+        # ══ 동행·조기확인 (사이클 활동 실측 — 빠른 발표로 전조를 확정) ══
+        coincident: list[dict] = []
+        coin_score = 0
+
+        # 3) TSMC 월매출 YoY (활동 그 자체·동행 — 익월 10일 발표라 분기 실적보다 빠른 확정)
         tsmc = tsmc_revenue_fetcher.get_monthly_revenue()
         if tsmc.get("available"):
             t_yoy = tsmc["yoy"]
             if t_yoy < 0:
-                st, pts = "감소", 15
+                st, pts = "감소", 10
             elif tsmc.get("slowing"):
-                st, pts = "증가율 둔화", 8
+                st, pts = "증가율 둔화", 5
             else:
                 st, pts = "가속", 0
-            lead_score += pts
-            leading.append({
+            coin_score += pts
+            coincident.append({
                 "key": "tsmc", "label": "TSMC 월매출", "status": st,
                 "value": f"YoY {t_yoy:+.0f}%",
                 "detail": f"{tsmc.get('latest_period')} NT${tsmc.get('revenue_bn'):.0f}B · 직전 {tsmc.get('yoy_prev'):+.0f}%",
             })
 
-        # 4) 한국 반도체 수출 YoY (글로벌 반도체 사이클 선행지수)
+        # 4) 한국 반도체 수출 YoY (활동·동행 — 익월 1일 발표, 세계 최속 반도체 데이터)
         kr_exp = customs_export_fetcher.get_semiconductor_export()
         exp_yoy = kr_exp.get("yoy") if kr_exp.get("available") else None
         if exp_yoy is not None:
             if exp_yoy < 0:
-                st, pts = "감소", 15
+                st, pts = "감소", 10
             elif exp_yoy < 10:
-                st, pts = "둔화", 8
+                st, pts = "둔화", 5
             else:
                 st, pts = "견조", 0
-            lead_score += pts
-            leading.append({
+            coin_score += pts
+            coincident.append({
                 "key": "kr_export", "label": "한국 반도체 수출", "status": st,
                 "value": f"YoY {exp_yoy:+.0f}%",
                 "detail": f"{kr_exp.get('latest_period')} {kr_exp.get('latest_value')}억$",
@@ -1007,7 +1013,7 @@ class MacroService:
             confirm.append({"key": "rsi", "label": "RSI(14)", "status": st,
                             "value": f"{rsi:.0f}", "detail": "메모리 바스켓"})
 
-        score = min(100, lead_score + conf_score)
+        score = min(100, lead_score + coin_score + conf_score)
 
         # ── 국면 판정 ──
         if mem_3m is not None and mem_3m < -8:
@@ -1115,6 +1121,7 @@ class MacroService:
             "color": info["color"],
             "top_risk_score": score,
             "lead_score": lead_score,
+            "coin_score": coin_score,
             "conf_score": conf_score,
             "capex_series": capex_series,
             "mem_logic_series": mem_logic_series,
@@ -1124,8 +1131,9 @@ class MacroService:
             "hbm3e_series": hbm3e_series,
             "ecos_series": ecos_series,
             "tsmc_series": tsmc_series,
-            # 선행(펀더멘탈) / 확인(주가)
+            # 선행·전조 / 동행·조기확인 / 확인·주가
             "leading_signals": leading,
+            "coincident_signals": coincident,
             "confirm_signals": confirm,
             # 참고: 캐펙스·D램·HBM 실데이터
             "capex": {

@@ -1,8 +1,9 @@
 /** 반도체 레짐 판정기 — AI 반도체 사이클 고점 '선행' 판독
  *
- * 선행(펀더멘탈·주축): 빅테크 캐펙스 증가율 + D램 가격 → 사이클을 선행
- * 확인(주가·동행): 메모리/로직 과열·상대강도·모멘텀·RSI → 선행 신호를 확인
- * 고점위험 스코어 = 선행(최대 60) + 확인(최대 40)
+ * 선행·전조(60): 캐펙스 증가율 + 메모리 가격(ECOS·HBM·스팟) → 변곡을 앞서는 전조
+ * 동행·조기확인(20): TSMC 월매출 + 한국 수출 → 빠른 발표로 전조를 확정
+ * 확인·주가(40): 과열·상대강도·모멘텀·RSI → 주가 동조 여부
+ * 고점위험 스코어 = min(100, 선행 + 동행 + 확인)
  */
 import { MacroLineChart } from './charts/MacroLineChart';
 import type { SemiconductorData, LeadingSignal } from '../../types/macro';
@@ -64,7 +65,9 @@ export function SemiconductorRegime({ data }: Props) {
         <div className="flex items-baseline justify-between mb-2">
           <span className="text-xs font-mono text-slate-500 uppercase tracking-wider">
             고점 위험 스코어
-            <span className="text-slate-600 ml-2 normal-case">선행 {data.lead_score} + 확인 {data.conf_score}</span>
+            <span className="text-slate-600 ml-2 normal-case">
+              선행 {data.lead_score} + 동행 {data.coin_score ?? 0} + 확인 {data.conf_score}
+            </span>
           </span>
           <span className="text-3xl font-mono font-bold" style={{ color: data.color }}>{score}</span>
         </div>
@@ -85,10 +88,10 @@ export function SemiconductorRegime({ data }: Props) {
         </div>
       </div>
 
-      {/* 선행 신호 (펀더멘탈) — 주축 */}
+      {/* 선행·전조 (펀더멘탈) — 주축 */}
       <div className="mb-1 flex items-center gap-2">
-        <span className="text-xs font-mono text-cyan-400 uppercase tracking-wider">선행 · 펀더멘탈</span>
-        <span className="text-xs font-mono text-slate-600">캐펙스·D램이 사이클을 선행</span>
+        <span className="text-xs font-mono text-cyan-400 uppercase tracking-wider">선행 · 전조</span>
+        <span className="text-xs font-mono text-slate-600">캐펙스 증가율·메모리 가격이 변곡을 앞섬 · 풀점등 60 = 단독 경고</span>
       </div>
       <div className="grid grid-cols-2 gap-2 mb-3">
         {data.leading_signals.map((s) => <SignalCard key={s.key} s={s} big />)}
@@ -97,10 +100,23 @@ export function SemiconductorRegime({ data }: Props) {
         )}
       </div>
 
-      {/* 확인 신호 (주가·동행) — 보조 */}
+      {/* 동행·조기확인 (활동 실측) */}
+      {data.coincident_signals && data.coincident_signals.length > 0 && (
+        <>
+          <div className="mb-1 flex items-center gap-2">
+            <span className="text-xs font-mono text-amber-400 uppercase tracking-wider">동행 · 조기확인</span>
+            <span className="text-xs font-mono text-slate-600">사이클 활동 그 자체 — 빠른 발표(익월 1일/10일)로 전조를 확정</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            {data.coincident_signals.map((s) => <SignalCard key={s.key} s={s} />)}
+          </div>
+        </>
+      )}
+
+      {/* 확인 신호 (주가) — 보조 */}
       <div className="mb-1 flex items-center gap-2">
-        <span className="text-xs font-mono text-slate-500 uppercase tracking-wider">확인 · 주가(동행)</span>
-        <span className="text-xs font-mono text-slate-600">선행 신호를 확인만</span>
+        <span className="text-xs font-mono text-slate-500 uppercase tracking-wider">확인 · 주가</span>
+        <span className="text-xs font-mono text-slate-600">주가 동조 여부만 확인</span>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
         {data.confirm_signals.map((s) => <SignalCard key={s.key} s={s} />)}
