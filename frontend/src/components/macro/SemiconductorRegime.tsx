@@ -149,24 +149,10 @@ export function SemiconductorRegime({ data }: Props) {
           </div>
         )}
 
-        {/* 메모리 vs 로직 주가 (정규화 지수) */}
-        {data.mem_logic_series && data.mem_logic_series.length > 0 && (
-          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-            <ChartTitle
-              title="메모리 vs 로직 주가 (시작=100 정규화, 2년)"
-              info="메모리 3사(마이크론·SK하이닉스·삼성전자)와 로직 2사(엔비디아·브로드컴) 주가를 각각 바스켓 평균한 뒤 2년 전=100으로 정규화한 상대 성과 비교입니다. 메모리는 사이클 후반에 로직을 가파르게 아웃퍼폼하는 경향이 있어, 메모리 라인이 수직으로 벌어지면 과열·말기 신호, 벌어진 격차가 꺾이면(롤오버) 고점 확인 신호입니다. 아래 확인 블록의 과열도·상대강도·모멘텀·RSI가 이 데이터로 계산됩니다."
-            />
-            <MacroLineChart
-              data={data.mem_logic_series}
-              series={[
-                { dataKey: 'memory', color: '#f59e0b', name: '메모리' },
-                { dataKey: 'logic', color: '#06b6d4', name: '로직' },
-              ]}
-              height={220}
-              yAxisFormatter={(v) => `${v.toFixed(0)}`}
-            />
-          </div>
-        )}
+        {/* ── 선행 · 전조 차트 ── */}
+        <div className="text-[11px] font-mono text-cyan-400/80 uppercase tracking-wider pt-1">
+          선행 · 전조 — 수요·공급 캐펙스와 메모리 가격
+        </div>
 
         {/* 빅테크 캐펙스 분기 추이 */}
         {data.capex_series && data.capex_series.length > 0 && (
@@ -210,27 +196,6 @@ export function SemiconductorRegime({ data }: Props) {
           </div>
         )}
 
-        {/* D램 DDR4 가격 추이 (컨트랙트 → 스팟) */}
-        {data.ddr4_series && data.ddr4_series.length > 0 && (
-          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-            <ChartTitle
-              title="D램 DDR4 8Gb 가격 ($ · 컨트랙트→스팟 · 전기 대비 %)"
-              info="SiliconAnalysts의 분기 추정치로, 레거시 D램 가격의 장기 레벨 참고용입니다. 데이터가 희소하고(포인트 수 개) 컨트랙트→스팟 접합 지점은 기준이 달라 변화율(주황 막대)을 계산하지 않습니다. 스팟 '방향' 신호로는 사용하지 않으며, 신호는 TrendForce 일간 실측이 담당합니다."
-            />
-            <MacroLineChart
-              data={data.ddr4_series}
-              series={[
-                { dataKey: 'value', color: '#f43f5e', name: 'DDR4 $', type: 'area', dot: true },
-                { dataKey: 'qoq', color: '#f59e0b', name: '전기 대비 %', type: 'bar', yAxisId: 'right', barSize: 28 },
-              ]}
-              height={220}
-              yAxisFormatter={(v) => `$${v}`}
-              rightYAxisFormatter={(v) => `${v.toFixed(0)}%`}
-              referenceLines={[{ y: 0, color: '#64748b', yAxisId: 'right' }]}
-            />
-          </div>
-        )}
-
         {/* IC 수출물가지수 (ECOS · D램 컨트랙트 프록시) */}
         {data.ecos_series && data.ecos_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
@@ -250,27 +215,6 @@ export function SemiconductorRegime({ data }: Props) {
               yDomain={['auto', 'auto']}
               referenceLines={[{ y: 0, color: '#64748b', yAxisId: 'right' }]}
               brush
-            />
-          </div>
-        )}
-
-        {/* TSMC 월매출 (AI 생산 최상류) */}
-        {data.tsmc_series && data.tsmc_series.length > 0 && (
-          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-            <ChartTitle
-              title="TSMC 월매출 (NT$B · YoY %)"
-              info="SEC 6-K 공시로 매월 10일경 발표되는 TSMC 월매출입니다. AI 칩 생산 최상류의 월간 실측(동행·조기확인) — 매출 자체보다 YoY 증가율(주황 라인)의 방향이 핵심으로, 증가율이 직전 월 대비 5%p 이상 둔화하면 5점, 마이너스 전환 시 10점이 점등됩니다. 분기 실적 발표보다 1~2개월 빠른 확정 신호입니다."
-            />
-            <MacroLineChart
-              data={data.tsmc_series}
-              series={[
-                { dataKey: 'revenue_bn', color: '#06b6d4', name: '매출 NT$B', type: 'bar' },
-                { dataKey: 'yoy', color: '#f59e0b', name: 'YoY %', yAxisId: 'right' },
-              ]}
-              height={220}
-              yAxisFormatter={(v) => `${v.toFixed(0)}`}
-              rightYAxisFormatter={(v) => `${v.toFixed(0)}%`}
-              referenceLines={[{ y: 0, color: '#64748b', yAxisId: 'right' }]}
             />
           </div>
         )}
@@ -316,6 +260,53 @@ export function SemiconductorRegime({ data }: Props) {
           </div>
         )}
 
+        {/* D램 DDR4 가격 추이 (컨트랙트 → 스팟 · 장기 레벨 참고) */}
+        {data.ddr4_series && data.ddr4_series.length > 0 && (
+          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
+            <ChartTitle
+              title="D램 DDR4 8Gb 가격 ($ · 컨트랙트→스팟 · 전기 대비 %)"
+              info="SiliconAnalysts의 분기 추정치로, 레거시 D램 가격의 장기 레벨 참고용입니다. 데이터가 희소하고(포인트 수 개) 컨트랙트→스팟 접합 지점은 기준이 달라 변화율(주황 막대)을 계산하지 않습니다. 스팟 '방향' 신호로는 사용하지 않으며, 신호는 TrendForce 일간 실측이 담당합니다."
+            />
+            <MacroLineChart
+              data={data.ddr4_series}
+              series={[
+                { dataKey: 'value', color: '#f43f5e', name: 'DDR4 $', type: 'area', dot: true },
+                { dataKey: 'qoq', color: '#f59e0b', name: '전기 대비 %', type: 'bar', yAxisId: 'right', barSize: 28 },
+              ]}
+              height={220}
+              yAxisFormatter={(v) => `$${v}`}
+              rightYAxisFormatter={(v) => `${v.toFixed(0)}%`}
+              referenceLines={[{ y: 0, color: '#64748b', yAxisId: 'right' }]}
+            />
+          </div>
+        )}
+
+        {/* ── 동행 · 조기확인 차트 ── */}
+        <div className="text-[11px] font-mono text-amber-400/80 uppercase tracking-wider pt-1">
+          동행 · 조기확인 — 사이클 활동 실측
+        </div>
+
+        {/* TSMC 월매출 (AI 생산 최상류) */}
+        {data.tsmc_series && data.tsmc_series.length > 0 && (
+          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
+            <ChartTitle
+              title="TSMC 월매출 (NT$B · YoY %)"
+              info="SEC 6-K 공시로 매월 10일경 발표되는 TSMC 월매출입니다. AI 칩 생산 최상류의 월간 실측(동행·조기확인) — 매출 자체보다 YoY 증가율(주황 라인)의 방향이 핵심으로, 증가율이 직전 월 대비 5%p 이상 둔화하면 5점, 마이너스 전환 시 10점이 점등됩니다. 분기 실적 발표보다 1~2개월 빠른 확정 신호입니다."
+            />
+            <MacroLineChart
+              data={data.tsmc_series}
+              series={[
+                { dataKey: 'revenue_bn', color: '#06b6d4', name: '매출 NT$B', type: 'bar' },
+                { dataKey: 'yoy', color: '#f59e0b', name: 'YoY %', yAxisId: 'right' },
+              ]}
+              height={220}
+              yAxisFormatter={(v) => `${v.toFixed(0)}`}
+              rightYAxisFormatter={(v) => `${v.toFixed(0)}%`}
+              referenceLines={[{ y: 0, color: '#64748b', yAxisId: 'right' }]}
+            />
+          </div>
+        )}
+
         {/* 한국 반도체 수출 추이 (월별) */}
         {data.export_series && data.export_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
@@ -328,6 +319,30 @@ export function SemiconductorRegime({ data }: Props) {
               series={[{ dataKey: 'value', color: '#22d3ee', name: '수출 억$', type: 'area' }]}
               height={220}
               yAxisFormatter={(v) => `${v}억`}
+            />
+          </div>
+        )}
+
+        {/* ── 확인 · 주가 차트 ── */}
+        <div className="text-[11px] font-mono text-slate-500 uppercase tracking-wider pt-1">
+          확인 · 주가 — 동조 여부
+        </div>
+
+        {/* 메모리 vs 로직 주가 (정규화 지수) */}
+        {data.mem_logic_series && data.mem_logic_series.length > 0 && (
+          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
+            <ChartTitle
+              title="메모리 vs 로직 주가 (시작=100 정규화, 2년)"
+              info="메모리 3사(마이크론·SK하이닉스·삼성전자)와 로직 2사(엔비디아·브로드컴) 주가를 각각 바스켓 평균한 뒤 2년 전=100으로 정규화한 상대 성과 비교입니다. 메모리는 사이클 후반에 로직을 가파르게 아웃퍼폼하는 경향이 있어, 메모리 라인이 수직으로 벌어지면 과열·말기 신호, 벌어진 격차가 꺾이면(롤오버) 고점 확인 신호입니다. 위 확인 블록의 과열도·상대강도·모멘텀·RSI가 이 데이터로 계산됩니다."
+            />
+            <MacroLineChart
+              data={data.mem_logic_series}
+              series={[
+                { dataKey: 'memory', color: '#f59e0b', name: '메모리' },
+                { dataKey: 'logic', color: '#06b6d4', name: '로직' },
+              ]}
+              height={220}
+              yAxisFormatter={(v) => `${v.toFixed(0)}`}
             />
           </div>
         )}
