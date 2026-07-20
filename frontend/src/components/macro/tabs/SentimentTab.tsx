@@ -1,6 +1,7 @@
 /** 탭 4: 시장 심리 */
 import { MacroLineChart } from '../charts/MacroLineChart';
 import { TabChartSection } from './TabChartSection';
+import { addYoY, YOY_SERIES, YOY_ZERO_LINE, yoyFormatter } from './chartUtils';
 import type { CrisisOverlay, SignalMarker } from '../charts/crisisOverlayConfig';
 
 interface Props {
@@ -34,7 +35,6 @@ export function SentimentTab({ data, crisisOverlays = [] }: Props) {
         />
       </TabChartSection>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* 하이일드 스프레드 */}
         <TabChartSection
           title="High Yield Spread (ICE BofA)"
@@ -53,13 +53,14 @@ export function SentimentTab({ data, crisisOverlays = [] }: Props) {
           description={"신규 실업수당 청구건수 (주간)\n• 고용시장 실시간 체온계\n• 20만 이하: 노동시장 강세\n• 25만~30만: 정상 범위\n• 30만 이상: 고용 둔화 경고\n• 급등 시: 경기 침체 선행 신호\n• Y축 상한 500K (코로나 스파이크 클램핑)"}
         >
           <MacroLineChart crisisOverlays={crisisOverlays}
-            data={toChartData('ICSA')}
-            series={[{ dataKey: 'ICSA', color: '#a78bfa', name: 'Claims' }]}
+            data={addYoY(toChartData('ICSA'), 'ICSA')}
+            series={[{ dataKey: 'ICSA', color: '#a78bfa', name: 'Claims' }, YOY_SERIES]}
             yAxisFormatter={(v) => `${(v / 1000).toFixed(0)}K`}
+            rightYAxisFormatter={yoyFormatter}
             yDomain={[0, 500000]}
+            referenceLines={[YOY_ZERO_LINE]}
           />
         </TabChartSection>
-      </div>
 
       {/* 소비자심리지수 */}
       <TabChartSection
@@ -67,9 +68,10 @@ export function SentimentTab({ data, crisisOverlays = [] }: Props) {
         description={"미시간대 소비자심리지수 (UMCSENT)\n• 소비자의 경제 전망과 지출 의향 측정\n• 80 이상: 낙관 → 소비 증가 기대\n• 60~80: 보통\n• 60 이하: 비관 → 소비 위축 경고\n• 주식시장 3~6개월 선행 경향\n• 급락 시 경기침체 선행 신호"}
       >
         <MacroLineChart crisisOverlays={crisisOverlays}
-          data={toChartData('UMCSENT')}
-          series={[{ dataKey: 'UMCSENT', color: '#06b6d4', name: 'Sentiment' }]}
-          referenceLines={[{ y: 60, color: '#ef4444', label: '60' }]}
+          data={addYoY(toChartData('UMCSENT'), 'UMCSENT')}
+          series={[{ dataKey: 'UMCSENT', color: '#06b6d4', name: 'Sentiment' }, YOY_SERIES]}
+          rightYAxisFormatter={yoyFormatter}
+          referenceLines={[{ y: 60, color: '#ef4444', label: '60' }, YOY_ZERO_LINE]}
         />
       </TabChartSection>
     </div>

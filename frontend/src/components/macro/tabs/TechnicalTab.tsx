@@ -100,23 +100,23 @@ export function TechnicalTab({ data, crisisOverlays = [], signalMarkers = [] }: 
         />
       </TabChartSection>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* RSI */}
-        <TabChartSection
-          title="Weekly RSI (14)"
-          description={"RSI (Relative Strength Index, 14주)\n• 0~100 범위, 상승/하락 강도 측정\n• 70 이상: 과매수 → 조정 가능성\n• 30 이하: 과매도 → 반등 가능성\n• 25 이하: 극과매도 → 매수 시그널\n• 다이버전스 감지 시 추세 전환 신호"}
-        >
-          <MacroLineChart crisisOverlays={crisisOverlays}
-            data={rsiChart}
-            series={[{ dataKey: 'RSI', color: '#a78bfa', name: 'RSI' }]}
-            referenceLines={[
-              { y: 70, color: '#ef4444', label: '70' },
-              { y: 30, color: '#10b981', label: '30' },
-            ]}
-            height={180}
-          />
-        </TabChartSection>
+      {/* RSI */}
+      <TabChartSection
+        title="Weekly RSI (14)"
+        description={"RSI (Relative Strength Index, 14주)\n• 0~100 범위, 상승/하락 강도 측정\n• 70 이상: 과매수 → 조정 가능성\n• 30 이하: 과매도 → 반등 가능성\n• 25 이하: 극과매도 → 매수 시그널\n• 다이버전스 감지 시 추세 전환 신호"}
+      >
+        <MacroLineChart crisisOverlays={crisisOverlays}
+          data={rsiChart}
+          series={[{ dataKey: 'RSI', color: '#a78bfa', name: 'RSI' }]}
+          referenceLines={[
+            { y: 70, color: '#ef4444', label: '70' },
+            { y: 30, color: '#10b981', label: '30' },
+          ]}
+          height={220}
+        />
+      </TabChartSection>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* 게이지 + Drawdown */}
         <div className="space-y-3">
           <GaugeChart value={distancePct} label="200W SMA Distance" min={-30} max={50} />

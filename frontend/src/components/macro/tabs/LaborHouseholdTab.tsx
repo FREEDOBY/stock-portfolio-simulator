@@ -1,6 +1,7 @@
 /** 탭 6: 노동시장 & 가계 */
 import { MacroLineChart } from '../charts/MacroLineChart';
 import { TabChartSection } from './TabChartSection';
+import { addYoY, YOY_SERIES, YOY_ZERO_LINE, yoyFormatter } from './chartUtils';
 import type { CrisisOverlay, SignalMarker } from '../charts/crisisOverlayConfig';
 
 interface Props {
@@ -59,17 +60,18 @@ export function LaborHouseholdTab({ data, crisisOverlays = [] }: Props) {
         />
       </TabChartSection>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* 임시직 고용 */}
         <TabChartSection
           title="Temporary Help Services"
           description={"임시직/파견 고용 (TEMPHELPS)\n• 가장 빠른 고용 선행지표\n• 경기 둔화 시 정규직보다 먼저 감소\n• 감소 추세: 6~12개월 후 전체 고용 악화\n• AI 자동화 영향을 가장 먼저 반영\n• 2007년 말 감소 시작 → 2008 금융위기"}
         >
           <MacroLineChart crisisOverlays={crisisOverlays}
-            data={toChartData('TEMPHELPS')}
-            series={[{ dataKey: 'TEMPHELPS', color: '#f97316', name: 'Temp Jobs (K)' }]}
+            data={addYoY(toChartData('TEMPHELPS'), 'TEMPHELPS')}
+            series={[{ dataKey: 'TEMPHELPS', color: '#f97316', name: 'Temp Jobs (K)' }, YOY_SERIES]}
             yAxisFormatter={(v) => `${(v / 1000).toFixed(0)}K`}
+            rightYAxisFormatter={yoyFormatter}
             yDomain={[2000, 3300]}
+            referenceLines={[YOY_ZERO_LINE]}
           />
         </TabChartSection>
 
@@ -85,9 +87,7 @@ export function LaborHouseholdTab({ data, crisisOverlays = [] }: Props) {
             yDomain={[60, 68]}
           />
         </TabChartSection>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* 가계부채/GDP */}
         <TabChartSection
           title="Household Debt / GDP"
@@ -114,7 +114,6 @@ export function LaborHouseholdTab({ data, crisisOverlays = [] }: Props) {
             yDomain={[1, 5]}
           />
         </TabChartSection>
-      </div>
 
       {/* 개인저축률 */}
       <TabChartSection

@@ -1,6 +1,7 @@
 /** 탭 2: 유동성 & 금리 */
 import { MacroLineChart } from '../charts/MacroLineChart';
 import { TabChartSection } from './TabChartSection';
+import { addYoY, YOY_SERIES, YOY_ZERO_LINE, yoyFormatter } from './chartUtils';
 import type { CrisisOverlay, SignalMarker } from '../charts/crisisOverlayConfig';
 
 interface Props {
@@ -50,7 +51,6 @@ export function LiquidityTab({ data, crisisOverlays = [] }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Fed 기준금리 */}
         <TabChartSection
           title="Federal Funds Rate"
@@ -77,7 +77,6 @@ export function LiquidityTab({ data, crisisOverlays = [] }: Props) {
             yAxisFormatter={(v) => `${v}%`}
           />
         </TabChartSection>
-      </div>
 
       {/* M2 + YoY% */}
       <TabChartSection
@@ -117,15 +116,16 @@ export function LiquidityTab({ data, crisisOverlays = [] }: Props) {
         </TabChartSection>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* 연준 대차대조표 */}
         <TabChartSection
           title="Fed Balance Sheet"
           description={"연준 총자산 (WALCL)\n• QE(양적완화): 자산 매입 → 총자산 증가 → 유동성 공급\n• QT(양적긴축): 자산 축소 → 총자산 감소 → 유동성 회수\n• 자산 증가 속도가 빠를수록 시장 유동성 풍부\n• 2020~2022 QE: $4T → $9T 급증"}
         >
           <MacroLineChart crisisOverlays={crisisOverlays}
-            data={toChartData('WALCL')}
-            series={[{ dataKey: 'WALCL', color: '#06b6d4', name: 'Total Assets', type: 'area' }]}
+            data={addYoY(toChartData('WALCL'), 'WALCL')}
+            series={[{ dataKey: 'WALCL', color: '#06b6d4', name: 'Total Assets', type: 'area' }, YOY_SERIES]}
+            rightYAxisFormatter={yoyFormatter}
+            referenceLines={[YOY_ZERO_LINE]}
           />
         </TabChartSection>
 
@@ -146,11 +146,12 @@ export function LiquidityTab({ data, crisisOverlays = [] }: Props) {
           description={"달러 인덱스: 주요 6개국 통화 대비 달러 가치\n• 상승: 달러 강세 → 신흥국/원자재 약세, 미국 수출 부담\n• 하락: 달러 약세 → 위험자산 강세, 글로벌 유동성 확대\n• 100 이상: 달러 강세 구간\n• 나스닥과 역상관 경향 (달러↑ = 나스닥↓)"}
         >
           <MacroLineChart crisisOverlays={crisisOverlays}
-            data={toChartData('DXY')}
-            series={[{ dataKey: 'DXY', color: '#f59e0b', name: 'DXY' }]}
+            data={addYoY(toChartData('DXY'), 'DXY')}
+            series={[{ dataKey: 'DXY', color: '#f59e0b', name: 'DXY' }, YOY_SERIES]}
+            rightYAxisFormatter={yoyFormatter}
+            referenceLines={[YOY_ZERO_LINE]}
           />
         </TabChartSection>
-      </div>
 
       {/* 은행 대출 기준 강화 */}
       <TabChartSection
@@ -174,8 +175,10 @@ export function LiquidityTab({ data, crisisOverlays = [] }: Props) {
         description={"비금융기업 부채 총액 (BCNSDODNS)\n• 기업의 레버리지 수준 측정\n• 급증: 과잉 투자 + 부채 의존 → 금리 인상 시 위험\n• AI 인프라 과잉투자 시 이 지표가 급등\n• 2008년 전 급증 → 금융위기 촉발\n• GDP 대비 비율로 봐야 정확"}
       >
         <MacroLineChart crisisOverlays={crisisOverlays}
-          data={toChartData('BCNSDODNS')}
-          series={[{ dataKey: 'BCNSDODNS', color: '#f43f5e', name: 'Corp Debt', type: 'area' }]}
+          data={addYoY(toChartData('BCNSDODNS'), 'BCNSDODNS')}
+          series={[{ dataKey: 'BCNSDODNS', color: '#f43f5e', name: 'Corp Debt', type: 'area' }, YOY_SERIES]}
+          rightYAxisFormatter={yoyFormatter}
+          referenceLines={[YOY_ZERO_LINE]}
         />
       </TabChartSection>
     </div>

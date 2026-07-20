@@ -2,6 +2,7 @@
 import { MacroLineChart } from '../charts/MacroLineChart';
 import { CycleDiagram } from '../charts/CycleDiagram';
 import { TabChartSection } from './TabChartSection';
+import { addYoY, YOY_SERIES, YOY_ZERO_LINE, yoyFormatter } from './chartUtils';
 import type { CrisisOverlay, SignalMarker } from '../charts/crisisOverlayConfig';
 
 interface Props {
@@ -57,7 +58,6 @@ export function BusinessCycleTab({ data, crisisOverlays = [] }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* OECD CLI + MoM% */}
         <TabChartSection
           title="OECD CLI (미국) + MoM%"
@@ -85,21 +85,21 @@ export function BusinessCycleTab({ data, crisisOverlays = [] }: Props) {
         >
           <CycleDiagram currentPhase={kitchenPhase || 1} />
         </TabChartSection>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* 산업생산지수 - 키친사이클 핵심 입력 */}
       <TabChartSection
         title="산업생산지수 (IPMAN, 2012=100)"
         description={"산업생산 제조업지수 (Industrial Production: Manufacturing)\n• 2012년=100 기준 지수\n• 키친사이클 Phase 판별의 핵심 입력\n• 3개월 이동평균의 중기 방향(3개월 전 대비)으로 트렌드 판별\n• 상승 추세 → 경기 확장, 하락 추세 → 경기 수축\n• 급락: 경기침체 동행 지표"}
       >
         <MacroLineChart crisisOverlays={crisisOverlays}
-          data={ismData}
+          data={addYoY(ismData, 'PMI')}
           series={[
             { dataKey: 'PMI', color: '#10b981', name: '산업생산지수' },
+            YOY_SERIES,
           ]}
           yDomain={[70, 115]}
-          referenceLines={[{ y: 100, color: '#475569', label: '100 (2012)' }]}
+          rightYAxisFormatter={yoyFormatter}
+          referenceLines={[{ y: 100, color: '#475569', label: '100 (2012)' }, YOY_ZERO_LINE]}
         />
       </TabChartSection>
 
@@ -118,20 +118,19 @@ export function BusinessCycleTab({ data, crisisOverlays = [] }: Props) {
           rightYAxisFormatter={(v) => `${(v / 1000).toFixed(0)}B`}
         />
       </TabChartSection>
-      </div>
 
-      {/* 선행 지표 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* 제조업 신규주문 (Census) */}
         <TabChartSection
           title="New Orders: Nondefense Capital Goods ex-Aircraft"
           description={"핵심 자본재 신규주문 (NEWORDER)\n• 방산·항공기 제외한 기업 설비투자 주문\n• ISM PMI 신규주문의 실제 데이터 대용\n• 키친사이클 수요 트렌드 판별에 사용\n• 1~2개월 선행\n• 감소 추세 → 기업 투자 축소"}
         >
           <MacroLineChart crisisOverlays={crisisOverlays}
-            data={toChartData('NEWORDER')}
-            series={[{ dataKey: 'NEWORDER', color: '#3b82f6', name: 'New Orders ($B)' }]}
+            data={addYoY(toChartData('NEWORDER'), 'NEWORDER')}
+            series={[{ dataKey: 'NEWORDER', color: '#3b82f6', name: 'New Orders ($B)' }, YOY_SERIES]}
             yAxisFormatter={(v) => `${(v / 1000).toFixed(0)}B`}
+            rightYAxisFormatter={yoyFormatter}
             yDomain={[50000, 85000]}
+            referenceLines={[YOY_ZERO_LINE]}
           />
         </TabChartSection>
 
@@ -141,25 +140,27 @@ export function BusinessCycleTab({ data, crisisOverlays = [] }: Props) {
           description={"건축허가건수 (PERMIT)\n• 주택경기 선행지표 (6개월 선행)\n• 금리 인상 시 급감 → 경기 둔화 선행\n• 2006년 급감 → 2008 금융위기\n• 2022년 급감 → 주택시장 냉각\n• 주택은 GDP의 ~15% 차지"}
         >
           <MacroLineChart crisisOverlays={crisisOverlays}
-            data={toChartData('PERMIT')}
-            series={[{ dataKey: 'PERMIT', color: '#f97316', name: 'Permits (K)' }]}
+            data={addYoY(toChartData('PERMIT'), 'PERMIT')}
+            series={[{ dataKey: 'PERMIT', color: '#f97316', name: 'Permits (K)' }, YOY_SERIES]}
             yAxisFormatter={(v) => `${v.toFixed(0)}K`}
+            rightYAxisFormatter={yoyFormatter}
             yDomain={[900, 2100]}
+            referenceLines={[YOY_ZERO_LINE]}
           />
         </TabChartSection>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* 소비자 내구재 신규주문 */}
         <TabChartSection
           title="Consumer Durable Goods Orders"
           description={"소비자 내구재 신규주문 (ACDGNO)\n• 자동차, 가전 등 소비자 내구재\n• 소비 심리와 직결\n• 3~6개월 선행\n• 감소 → 소비자 지출 위축 신호\n• AI 관련 소비재 수요 트렌드"}
         >
           <MacroLineChart crisisOverlays={crisisOverlays}
-            data={toChartData('ACDGNO')}
-            series={[{ dataKey: 'ACDGNO', color: '#a78bfa', name: 'Consumer Durables ($B)' }]}
+            data={addYoY(toChartData('ACDGNO'), 'ACDGNO')}
+            series={[{ dataKey: 'ACDGNO', color: '#a78bfa', name: 'Consumer Durables ($B)' }, YOY_SERIES]}
             yAxisFormatter={(v) => `${(v / 1000).toFixed(0)}B`}
+            rightYAxisFormatter={yoyFormatter}
             yDomain={[20000, 55000]}
+            referenceLines={[YOY_ZERO_LINE]}
           />
         </TabChartSection>
 
@@ -169,9 +170,11 @@ export function BusinessCycleTab({ data, crisisOverlays = [] }: Props) {
           description={"총사업 재고/출하 비율 (ISRATIO)\n• 재고 ÷ 출하 = 재고가 몇 개월치인지\n• 상승: 재고 쌓임 (수요 < 공급) → 경기 둔화\n• 하락: 재고 소진 (수요 > 공급) → 경기 회복\n• 3개월 이동평균 방향으로 트렌드 판별\n• 키친사이클 Phase 판별의 핵심 입력"}
         >
           <MacroLineChart crisisOverlays={crisisOverlays}
-            data={toChartData('ISRATIO')}
-            series={[{ dataKey: 'ISRATIO', color: '#a78bfa', name: 'IS Ratio', type: 'area' }]}
+            data={addYoY(toChartData('ISRATIO'), 'ISRATIO')}
+            series={[{ dataKey: 'ISRATIO', color: '#a78bfa', name: 'IS Ratio', type: 'area' }, YOY_SERIES]}
             yDomain={[1.2, 1.55]}
+            rightYAxisFormatter={yoyFormatter}
+            referenceLines={[YOY_ZERO_LINE]}
           />
         </TabChartSection>
 
@@ -187,7 +190,6 @@ export function BusinessCycleTab({ data, crisisOverlays = [] }: Props) {
             yAxisFormatter={(v) => `${v.toFixed(1)}%`}
           />
         </TabChartSection>
-      </div>
 
       {/* 노동생산성 */}
       <TabChartSection
@@ -195,9 +197,11 @@ export function BusinessCycleTab({ data, crisisOverlays = [] }: Props) {
         description={"비농업 시간당 산출 (노동생산성)\n• AI/기술 혁신의 생산성 향상 직접 측정\n• 상승: 같은 노동으로 더 많이 생산 → 경제 성장\n• 정체/하락: 생산성 둔화 → 임금 상승 압력\n• AI 시대: 급격한 상승 시 고용 감소 동반 가능"}
       >
         <MacroLineChart crisisOverlays={crisisOverlays}
-          data={toChartData('OPHNFB')}
-          series={[{ dataKey: 'OPHNFB', color: '#06b6d4', name: 'Productivity', type: 'area' }]}
+          data={addYoY(toChartData('OPHNFB'), 'OPHNFB')}
+          series={[{ dataKey: 'OPHNFB', color: '#06b6d4', name: 'Productivity', type: 'area' }, YOY_SERIES]}
           yDomain={[95, 125]}
+          rightYAxisFormatter={yoyFormatter}
+          referenceLines={[YOY_ZERO_LINE]}
         />
       </TabChartSection>
     </div>
