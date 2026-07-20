@@ -1680,8 +1680,20 @@ class MacroService:
         else:
             verdict, vcolor = "되돌림 진행 중", "#f97316"
 
-        # 차트: 최근 주봉 + 전체이력 월봉
-        price = [{"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1)} for idx, v in recent.items()]
+        # 차트: 최근 주봉 + 전체이력 월봉. 이평선은 주봉 환산(50/120/200일 ≈ 10/24/40주)
+        sma50 = ixic.rolling(10).mean()
+        sma120 = ixic.rolling(24).mean()
+        sma200 = ixic.rolling(40).mean()
+
+        def _sma(s, idx):
+            v = s.get(idx)
+            return round(float(v), 1) if v is not None and pd.notna(v) else None
+
+        price = [
+            {"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1),
+             "sma50": _sma(sma50, idx), "sma120": _sma(sma120, idx), "sma200": _sma(sma200, idx)}
+            for idx, v in recent.items()
+        ]
         monthly = ixic.resample("MS").last().dropna()
         price_full = [{"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1)} for idx, v in monthly.items()]
 

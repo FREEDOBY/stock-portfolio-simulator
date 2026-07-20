@@ -222,7 +222,7 @@ export interface KospiBottomData {
 
 export interface NasdaqBottomData {
   available: boolean;
-  price?: Array<{ date: string; value: number }>;
+  price?: Array<{ date: string; value: number; sma50?: number | null; sma120?: number | null; sma200?: number | null }>;
   price_full?: Array<{ date: string; value: number }>;
   parabolic_events?: ParabolicEvent[];
   peak?: { date: string; value: number };
