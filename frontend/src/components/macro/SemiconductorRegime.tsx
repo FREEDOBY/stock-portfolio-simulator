@@ -210,6 +210,26 @@ export function SemiconductorRegime({ data }: Props) {
           </div>
         )}
 
+        {/* DRAM 스팟 일간 (TrendForce · 로컬 축적) */}
+        {data.tf_spot_series && data.tf_spot_series.length > 0 && (
+          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
+            <div className="text-xs font-mono text-slate-500 mb-1">
+              DRAM 스팟 일간 ($ · TrendForce · {data.tf_spot_series.length}일 축적)
+            </div>
+            <MacroLineChart
+              data={data.tf_spot_series}
+              series={[
+                { dataKey: 'ddr5_16gb', color: '#06b6d4', name: 'DDR5 16Gb', dot: true },
+                { dataKey: 'ddr4_16gb', color: '#a78bfa', name: 'DDR4 16Gb', dot: true },
+                { dataKey: 'ddr4_8gb', color: '#f59e0b', name: 'DDR4 8Gb', dot: true },
+              ]}
+              height={220}
+              yAxisFormatter={(v) => `$${v.toFixed(0)}`}
+              yDomain={['auto', 'auto']}
+            />
+          </div>
+        )}
+
         {/* HBM3E 가격 (AI 프리미엄 메모리) */}
         {data.hbm3e_series && data.hbm3e_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">

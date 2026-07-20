@@ -105,6 +105,13 @@ export interface SemiconductorData {
   hbm3e_series?: Array<{ date: string; contract?: number; spot?: number }>;
   ecos_series?: Array<{ date: string; value: number }>;
   tsmc_series?: Array<{ date: string; revenue_bn: number; yoy: number }>;
+  tf_spot_series?: Array<{
+    date: string;
+    ddr4_8gb: number | null;
+    ddr4_16gb: number | null;
+    ddr5_16gb: number | null;
+    avg_chg_pct: number | null;
+  }>;
   // 참고 실데이터
   capex: {
     total_latest: number | null;

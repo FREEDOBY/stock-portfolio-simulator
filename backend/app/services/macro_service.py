@@ -1118,6 +1118,8 @@ class MacroService:
         # ECOS 집적회로 수출물가지수 (달러기준 월간) / TSMC 월매출 YoY
         ecos_series = ecos.get("series", []) if ecos.get("available") else []
         tsmc_series = tsmc.get("series", []) if tsmc.get("available") else []
+        # TrendForce 스팟 일간 히스토리 (로컬 축적)
+        tf_spot_series = tf.get("history", []) if tf.get("available") else []
 
         return {
             "phase": phase,
@@ -1137,6 +1139,7 @@ class MacroService:
             "hbm3e_series": hbm3e_series,
             "ecos_series": ecos_series,
             "tsmc_series": tsmc_series,
+            "tf_spot_series": tf_spot_series,
             # 선행·전조 / 동행·조기확인 / 확인·주가
             "leading_signals": leading,
             "coincident_signals": coincident,

@@ -1,3 +1,6 @@
+# 로컬 축적 데이터 (TrendForce 스팟 히스토리 등)
+backend/data/
+
 # Python
 __pycache__/
 *.py[cod]
