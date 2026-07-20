@@ -19,6 +19,7 @@ from .bigtech_capex_fetcher import bigtech_capex_fetcher
 from .customs_export_fetcher import customs_export_fetcher
 from .ecos_fetcher import ecos_fetcher
 from .tsmc_revenue_fetcher import tsmc_revenue_fetcher
+from .trendforce_spot_fetcher import trendforce_spot_fetcher
 
 logger = logging.getLogger(__name__)
 
@@ -842,7 +843,7 @@ class MacroService:
         lead_score = 0
 
         def _arrow(d: Optional[str]) -> str:
-            return {"rising": "↑", "falling": "↓", "flat": "→"}.get(d or "", "?")
+            return {"rising": "↑", "falling": "↓", "flat": "→"}.get(d or "", "–")
 
         # 1) 빅테크 캐펙스 증가율 (AI 수요 최상류·선행)
         capex = bigtech_capex_fetcher.get_capex()
@@ -865,7 +866,12 @@ class MacroService:
         #    + HBM3E 방향(AI 프리미엄) + DDR4 스팟 방향(레거시) · PPI는 폴백
         ddr = silicon_analysts_fetcher.get_dram_ddr4()
         spot = ddr.get("spot", {})
-        spot_dir, spot_val = spot.get("direction"), spot.get("latest")
+        # 스팟 방향: TrendForce 일간 실측(1차) → SiliconAnalysts 가드 통과분(폴백)
+        tf = trendforce_spot_fetcher.get_dram_spot()
+        if tf.get("available"):
+            spot_dir, spot_val, spot_src = tf["direction"], tf.get("ddr4_8gb"), "trendforce"
+        else:
+            spot_dir, spot_val, spot_src = spot.get("direction"), spot.get("latest"), "silicon_analysts"
         hbm = silicon_analysts_fetcher.get_hbm_price()
         hbm3e_spot, hbm3e_contract = hbm.get("hbm3e_spot", {}), hbm.get("hbm3e_contract", {})
         hbm_dir = hbm3e_spot.get("direction") or hbm3e_contract.get("direction")
@@ -905,7 +911,7 @@ class MacroService:
             leading.append({
                 "key": "dram", "label": "메모리 가격", "status": st,
                 "value": f"{main_label} {main_val:+.0f}%" if main_val is not None else "N/A",
-                "detail": f"HBM3E {_arrow(hbm_dir)} · DDR4 스팟 {_arrow(spot_dir)}",
+                "detail": f"HBM3E {_arrow(hbm_dir)} · DRAM 스팟 {_arrow(spot_dir)}",
             })
 
         # ══ 동행·조기확인 (사이클 활동 실측 — 빠른 발표로 전조를 확정) ══
@@ -1143,6 +1149,9 @@ class MacroService:
             },
             "dram_ref": {
                 "ddr4_spot": spot_val, "ddr4_spot_dir": spot_dir,
+                "ddr5_spot": tf.get("ddr5_16gb") if tf.get("available") else None,
+                "spot_chg_pct": tf.get("avg_chg_pct") if tf.get("available") else None,
+                "spot_source": spot_src,
                 "ddr4_contract": ddr.get("contract", {}).get("latest"),
                 "ppi_yoy": ppi_yoy,
                 "hbm_gen": hbm.get("latest_gen"),
