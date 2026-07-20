@@ -59,8 +59,17 @@ class SiliconAnalystsFetcher:
         ]
         pts.sort(key=lambda x: x["period"] or 0)
         latest = pts[-1] if pts else {}
+        # 세대별 가격 이력 (hbm2~hbm4, 전망 포함) — 차트용
+        gen_points = [
+            {"key": p.get("series_key"), "period": p.get("period_sort_key"),
+             "value": p.get("value_mid"),
+             "proj": p.get("data_type") == "Projection" or "proj" in (p.get("period_label") or "").lower()}
+            for p in dp
+            if p.get("series_key") in ("hbm2", "hbm2e", "hbm3", "hbm3e", "hbm4")
+            and p.get("value_mid") is not None
+        ]
         return {"latest_gen": latest.get("gen"), "latest_value": latest.get("value"),
-                "unit": "$/GB", "series": pts,
+                "unit": "$/GB", "series": pts, "gen_points": gen_points,
                 "hbm3e_contract": self._series(dp, "hbm3e-contract"),
                 "hbm3e_spot": self._series(dp, "hbm3e-spot")}
 

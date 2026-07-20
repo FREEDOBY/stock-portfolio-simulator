@@ -240,18 +240,21 @@ export function SemiconductorRegime({ data }: Props) {
           </div>
         )}
 
-        {/* HBM3E 가격 (AI 프리미엄 메모리) */}
-        {data.hbm3e_series && data.hbm3e_series.length > 0 && (
+        {/* HBM 세대별 가격 (AI 프리미엄 메모리 · 2020~2026) */}
+        {data.hbm_gen_series && data.hbm_gen_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
             <ChartTitle
-              title="HBM3E 가격 ($/GB · 분기 추정)"
-              info="AI 가속기용 프리미엄 메모리 HBM3E의 GB당 가격입니다(SiliconAnalysts 반기 추정). HBM4 전환기의 가격 정상화(하락) 추세를 참고하는 용도로, 컨트랙트는 연 단위 선계약이라 미래 수급 협상 결과를 반영합니다. 최신 실측이 6개월 이상 오래되면 방향 신호에서 자동 제외됩니다(스테일 가드)."
+              title="HBM 세대별 가격 ($/GB · 2020~2026 · 마지막 포인트는 전망)"
+              info="AI 가속기용 프리미엄 메모리의 세대별 GB당 가격 이력입니다(SiliconAnalysts 추정). HBM은 연 단위 선계약 시장이라 일간 시세가 존재하지 않아 반기·연간 추정이 최선입니다. HBM3E의 2026 포인트($11)와 HBM4($14)는 전망치 — HBM4 전환기에 HBM3E 가격이 정상화(하락)되는 궤적이 핵심입니다. 신호에는 실측(2025 하반기까지)만 스테일 가드 하에 반영됩니다."
             />
             <MacroLineChart
-              data={data.hbm3e_series}
+              data={data.hbm_gen_series}
               series={[
-                { dataKey: 'contract', color: '#10b981', name: '컨트랙트', dot: true },
-                { dataKey: 'spot', color: '#f43f5e', name: '스팟', dot: true },
+                { dataKey: 'hbm2', color: '#64748b', name: 'HBM2', dot: true },
+                { dataKey: 'hbm2e', color: '#94a3b8', name: 'HBM2E', dot: true },
+                { dataKey: 'hbm3', color: '#06b6d4', name: 'HBM3', dot: true },
+                { dataKey: 'hbm3e', color: '#f43f5e', name: 'HBM3E', dot: true },
+                { dataKey: 'hbm4', color: '#a78bfa', name: 'HBM4', dot: true },
               ]}
               height={220}
               yAxisFormatter={(v) => `$${v}`}

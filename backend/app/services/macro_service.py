@@ -1163,14 +1163,22 @@ class MacroService:
             key=lambda x: x["date"],
         )
 
-        # HBM3E 컨트랙트/스팟 가격 추이 ($/GB, 분기)
+        # HBM 세대별 가격 이력 ($/GB, 2020~2026 · 전망 포함) — 연간 계약 시장이라
+        # 실시간 시세가 없어, 세대 전환 궤적(HBM2→HBM4)으로 가격 국면을 보여줌
+        def _hbm_date(psk) -> Optional[str]:
+            try:
+                n = int(psk)
+                m = 6 if n % 100 == 0 else min(12, max(1, n % 100) * 3)  # 연간 포인트는 연중(6월)
+                return f"{n // 100:04d}-{m:02d}"
+            except (TypeError, ValueError):
+                return None
+
         hbm_map: dict[str, dict] = {}
-        for kind, src in (("contract", hbm3e_contract), ("spot", hbm3e_spot)):
-            for p in src.get("points", []):
-                d = _q2d(p.get("period"))
-                if d and p.get("value") is not None:
-                    hbm_map.setdefault(d, {"date": d})[kind] = p["value"]
-        hbm3e_series = sorted(hbm_map.values(), key=lambda x: x["date"])
+        for p in hbm.get("gen_points", []):
+            d = _hbm_date(p.get("period"))
+            if d and p.get("value") is not None:
+                hbm_map.setdefault(d, {"date": d})[p["key"]] = p["value"]
+        hbm_gen_series = sorted(hbm_map.values(), key=lambda x: x["date"])
 
         # ECOS 집적회로 수출물가지수 (달러기준 월간) — MoM/YoY 변화율 동봉
         # MoM 감속이 '상승 둔화' 신호를 구동하므로 차트에서 보여야 함
@@ -1209,7 +1217,7 @@ class MacroService:
             "ppi_series": ppi_series,
             "export_series": export_series,
             "ddr4_series": ddr4_series,
-            "hbm3e_series": hbm3e_series,
+            "hbm_gen_series": hbm_gen_series,
             "ecos_series": ecos_series,
             "tsmc_series": tsmc_series,
             "tf_spot_series": tf_spot_series,
