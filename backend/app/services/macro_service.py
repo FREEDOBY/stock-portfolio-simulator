@@ -1520,33 +1520,27 @@ class MacroService:
                     for idx, r in fxdf.iterrows()
                 ]
 
-        # 원화 급락 스트레스 구간 — 60거래일(약 3개월) 환율 상승률이 +5% 이상인 구간을 음영.
-        # 상승 모멘텀 기반이라 2022처럼 완만·지속적 원화 약세도 포착(변동성 기반은 놓쳤음),
-        # 방향이 내재(상승률>0)돼 회복 구간(원화 강세)은 자동 제외.
+        # 원화 급락 스트레스 구간 — 40거래일(약 2개월) 환율 상승률이 +4% 이상인 구간을 음영.
+        # 상승 모멘텀 기반이라 2022 완만한 약세도, 2026 중동쇼크 같은 날카로운 급등도 포착
+        # (60일/5%는 계단식 상승을 희석해 놓쳤음). 방향 내재(상승률>0)라 회복 구간은 자동 제외.
+        # 짧은 소강(간격 20일 이내)은 하나의 스트레스 국면으로 병합.
         fx_vol_overlays = []
-        if fx is not None and len(fx) >= 80:
-            roc = (fx / fx.shift(60) - 1) * 100  # 60거래일 상승률 %
-            hot = roc > 5.0
-
-            def _emit(s, e):
-                if (e - s).days < 15:  # 15일 이상 지속만
-                    return
-                fx_vol_overlays.append({
-                    "start": s.strftime("%Y-%m-%d"), "end": e.strftime("%Y-%m-%d"),
-                    "label": "원화 급락", "type": "volatility",
-                })
-
-            start = prev_idx = None
-            for idx, is_hot in hot.items():
-                if bool(is_hot):
-                    if start is None:
-                        start = idx
-                    prev_idx = idx
-                elif start is not None:
-                    _emit(start, prev_idx)
-                    start = None
-            if start is not None and prev_idx is not None:
-                _emit(start, prev_idx)
+        if fx is not None and len(fx) >= 60:
+            roc = (fx / fx.shift(40) - 1) * 100  # 40거래일 상승률 %
+            hot_dates = [idx for idx, v in roc.items() if pd.notna(v) and v > 4.0]
+            # 근접 구간 병합
+            segs = []
+            for d in hot_dates:
+                if segs and (d - segs[-1][1]).days <= 20:
+                    segs[-1][1] = d
+                else:
+                    segs.append([d, d])
+            for s, e in segs:
+                if (e - s).days >= 15:  # 15일 이상 지속만
+                    fx_vol_overlays.append({
+                        "start": s.strftime("%Y-%m-%d"), "end": e.strftime("%Y-%m-%d"),
+                        "label": "원화 급락", "type": "volatility",
+                    })
 
         # WTI 유가 (주봉 근사 + YoY) — 공급쇼크 모니터
         wti_series = []
