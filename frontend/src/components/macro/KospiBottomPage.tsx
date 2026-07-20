@@ -191,9 +191,9 @@ export function KospiBottomPage() {
   // 차트 시리즈 + 이동평균선 + Fib 되돌림 기준선
   const series = [
     { dataKey: 'value', color: regime?.color || '#06b6d4', name: 'KOSPI' },
-    { dataKey: 'sma50', color: '#f59e0b', name: '50일', strokeDasharray: '4 2' },
-    { dataKey: 'sma120', color: '#a78bfa', name: '120일', strokeDasharray: '4 2' },
-    { dataKey: 'sma200', color: '#ef4444', name: '200일', strokeDasharray: '4 2' },
+    { dataKey: 'sma50', color: '#10b981', name: '50일', strokeDasharray: '4 2' },
+    { dataKey: 'sma120', color: '#3b82f6', name: '120일', strokeDasharray: '4 2' },
+    { dataKey: 'sma200', color: '#ec4899', name: '200일', strokeDasharray: '4 2' },
   ];
   const referenceLines = [
     { y: retracement.fib382, color: '#f59e0b', label: '38.2%' },
