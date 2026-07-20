@@ -147,7 +147,7 @@ export function LiquidityTab({ data, crisisOverlays = [] }: Props) {
         >
           <MacroLineChart crisisOverlays={crisisOverlays}
             data={addYoY(toChartData('DXY'), 'DXY')}
-            series={[{ dataKey: 'DXY', color: '#f59e0b', name: 'DXY' }, YOY_SERIES]}
+            series={[{ dataKey: 'DXY', color: '#06b6d4', name: 'DXY' }, YOY_SERIES]}
             rightYAxisFormatter={yoyFormatter}
             referenceLines={[YOY_ZERO_LINE]}
           />

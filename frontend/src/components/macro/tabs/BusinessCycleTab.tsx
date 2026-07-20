@@ -141,7 +141,7 @@ export function BusinessCycleTab({ data, crisisOverlays = [] }: Props) {
         >
           <MacroLineChart crisisOverlays={crisisOverlays}
             data={addYoY(toChartData('PERMIT'), 'PERMIT')}
-            series={[{ dataKey: 'PERMIT', color: '#f97316', name: 'Permits (K)' }, YOY_SERIES]}
+            series={[{ dataKey: 'PERMIT', color: '#22d3ee', name: 'Permits (K)' }, YOY_SERIES]}
             yAxisFormatter={(v) => `${v.toFixed(0)}K`}
             rightYAxisFormatter={yoyFormatter}
             yDomain={[900, 2100]}

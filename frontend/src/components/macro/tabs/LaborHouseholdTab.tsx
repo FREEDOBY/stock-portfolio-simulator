@@ -67,7 +67,7 @@ export function LaborHouseholdTab({ data, crisisOverlays = [] }: Props) {
         >
           <MacroLineChart crisisOverlays={crisisOverlays}
             data={addYoY(toChartData('TEMPHELPS'), 'TEMPHELPS')}
-            series={[{ dataKey: 'TEMPHELPS', color: '#f97316', name: 'Temp Jobs (K)' }, YOY_SERIES]}
+            series={[{ dataKey: 'TEMPHELPS', color: '#06b6d4', name: 'Temp Jobs (K)' }, YOY_SERIES]}
             yAxisFormatter={(v) => `${(v / 1000).toFixed(0)}K`}
             rightYAxisFormatter={yoyFormatter}
             yDomain={[2000, 3300]}
