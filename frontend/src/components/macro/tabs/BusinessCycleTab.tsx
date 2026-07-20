@@ -20,12 +20,17 @@ export function BusinessCycleTab({ data, crisisOverlays = [] }: Props) {
     return Array.from(byMonth, ([date, value]) => ({ date, [seriesId]: value }));
   };
 
-  // CLI + MoM% (듀얼 Y축)
+  // CLI + MoM% + MoM 3개월 이동평균 (모멘텀 추세 = 확장/수축 전환 조기신호)
   const cliData = data['USALOLITOAASTSAM']?.data || [];
+  const cliMom = cliData.map((d, i) =>
+    i > 0 ? ((d.value - cliData[i - 1].value) / cliData[i - 1].value) * 100 : 0,
+  );
   const cliWithMom = cliData.map((d, i) => ({
     date: d.date.substring(0, 7),
     CLI: d.value,
-    'MoM%': i > 0 ? ((d.value - cliData[i - 1].value) / cliData[i - 1].value) * 100 : 0,
+    'MoM%': cliMom[i],
+    // MoM 3개월 이동평균: 월별 노이즈 제거 → 모멘텀 방향(가속/감속)이 매끈하게
+    'MoM 3MA': i >= 2 ? (cliMom[i] + cliMom[i - 1] + cliMom[i - 2]) / 3 : null,
   }));
 
   // PMI + 신규주문 + 재고
@@ -60,16 +65,18 @@ export function BusinessCycleTab({ data, crisisOverlays = [] }: Props) {
     <div className="space-y-4">
         {/* OECD CLI + MoM% */}
         <TabChartSection
-          title="OECD CLI (미국) + MoM%"
-          description={"OECD 경기선행지수 (Composite Leading Indicator)\n• 100 이상: 경기 확장기\n• 100 이하: 경기 수축기\n• MoM%: 월간 변화율로 방향성 판단\n• MoM% 가속도(변화의 변화)로 전환점 포착"}
+          title="OECD CLI (미국) + 모멘텀(MoM · 3개월 평균)"
+          description={"OECD 경기선행지수 (Composite Leading Indicator)\n• 100 이상: 경기 확장기 / 이하: 수축기 (레벨)\n• MoM%(옅은 점선): 월간 변화율 원값\n• MoM 3개월 평균(굵은 선): 모멘텀 추세 — 이게 핵심\n  - 0 위에서 하락 = 확장이나 동력 약화(후기)\n  - 0 아래로 = 수축 전환 조기신호\n• 우측 축은 ±0.6%로 압축(과거 급변 클리핑)해 최근 모멘텀이 보이게"}
         >
           <MacroLineChart crisisOverlays={crisisOverlays}
             data={cliWithMom}
             series={[
               { dataKey: 'CLI', color: '#06b6d4', name: 'CLI', yAxisId: 'left' },
-              { dataKey: 'MoM%', color: '#f97316', name: 'MoM%', strokeDasharray: '4 4', yAxisId: 'right' },
+              { dataKey: 'MoM%', color: '#f97316', name: 'MoM%', strokeDasharray: '2 3', yAxisId: 'right' },
+              { dataKey: 'MoM 3MA', color: '#f59e0b', name: 'MoM 3MA', yAxisId: 'right' },
             ]}
             yDomain={[94, 106]}
+            rightYDomain={[-0.6, 0.6]}
             referenceLines={[
               { y: 100, color: '#475569', label: '100', yAxisId: 'left' },
               { y: 0, color: '#475569', label: '0%', yAxisId: 'right' },
