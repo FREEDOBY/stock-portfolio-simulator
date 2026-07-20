@@ -1520,25 +1520,21 @@ class MacroService:
                     for idx, r in fxdf.iterrows()
                 ]
 
-        # 환율 급등 스트레스 구간 — 변동성 급등(평균+1σ) 중 '원화 약세(환율 상승)' 방향만.
-        # 원화 강세(환율 하락) 변동성은 외국인 유입·회복 신호라 위기 아님 → 제외
+        # 원화 급락 스트레스 구간 — 60거래일(약 3개월) 환율 상승률이 +5% 이상인 구간을 음영.
+        # 상승 모멘텀 기반이라 2022처럼 완만·지속적 원화 약세도 포착(변동성 기반은 놓쳤음),
+        # 방향이 내재(상승률>0)돼 회복 구간(원화 강세)은 자동 제외.
         fx_vol_overlays = []
-        if fx is not None and len(fx) >= 60:
-            ret = fx.pct_change()
-            vol = ret.rolling(20).std() * (252 ** 0.5) * 100  # 연율화 %
-            thr = float(vol.mean() + vol.std())
-            hot = vol > thr
+        if fx is not None and len(fx) >= 80:
+            roc = (fx / fx.shift(60) - 1) * 100  # 60거래일 상승률 %
+            hot = roc > 5.0
 
             def _emit(s, e):
-                # 구간 순변화가 상승(원화 약세)일 때만 스트레스로 인정
-                if (e - s).days < 10:
+                if (e - s).days < 15:  # 15일 이상 지속만
                     return
-                seg = fx.loc[s:e]
-                if len(seg) >= 2 and float(seg.iloc[-1]) > float(seg.iloc[0]):
-                    fx_vol_overlays.append({
-                        "start": s.strftime("%Y-%m-%d"), "end": e.strftime("%Y-%m-%d"),
-                        "label": "원화 급락", "type": "volatility",
-                    })
+                fx_vol_overlays.append({
+                    "start": s.strftime("%Y-%m-%d"), "end": e.strftime("%Y-%m-%d"),
+                    "label": "원화 급락", "type": "volatility",
+                })
 
             start = prev_idx = None
             for idx, is_hot in hot.items():
