@@ -504,7 +504,9 @@ export function KospiBottomPage() {
                 yAxisFormatter={(v) => `${v.toFixed(1)}조`}
                 yDomain={['auto', 'auto']}
               />
-              <p className="text-xs font-mono text-slate-600 mt-1">최근 {creditChart.length}거래일 · KOFIA</p>
+              <p className="text-xs font-mono text-slate-600 mt-1">
+                ~{creditChart[creditChart.length - 1]?.date} · 최근 {creditChart.length}거래일 · KOFIA (T+2 영업일 공표)
+              </p>
             </div>
           )}
         </div>
@@ -560,7 +562,9 @@ export function KospiBottomPage() {
                 yAxisFormatter={(v) => `${v}억`}
                 rightYAxisFormatter={(v) => `${v}%`}
               />
-              <p className="text-xs font-mono text-slate-600 mt-1">최근 {forcedChart.length}거래일 · KOFIA</p>
+              <p className="text-xs font-mono text-slate-600 mt-1">
+                ~{forcedChart[forcedChart.length - 1]?.date} · 최근 {forcedChart.length}거래일 · KOFIA (T+2 영업일 공표)
+              </p>
             </div>
           )}
         </div>
