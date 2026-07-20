@@ -53,8 +53,29 @@ const NASDAQ_NON_RECESSION: BearRow[] = [
   { period: '파월쇼크 18', high: '8,133 (18.8)', low: '6,190 (18.12)', drop: -24, dur: '4개월' },
   { period: '긴축 베어장 21~22', high: '16,212 (21.11)', low: '10,213 (22.10)', drop: -37, dur: '11개월' },
   { period: '관세쇼크 25', high: '20,174 (24.12)', low: '~15,300 (25.4)', drop: -24, dur: '4개월' },
-  { period: '현재 26.7', high: '사상최고 (26.6)', low: '진행형', drop: -8, dur: '3주', current: true },
 ];
+
+/** 배너와 동일한 라이브 데이터로 '현재' 행 생성 (하드코딩 대신 실데이터 연동) */
+function buildCurrentRow(data: NasdaqBottomData): BearRow | null {
+  const peak = data.peak;
+  const cur = data.current;
+  const dd = data.drawdown_pct;
+  if (!peak || cur == null || dd == null) return null;
+  const ym = (s?: string) => (s ? `${s.slice(2, 4)}.${Number(s.slice(5, 7))}` : '');
+  let dur = '진행형';
+  if (peak.date) {
+    const months = Math.max(0, Math.round((Date.now() - new Date(peak.date).getTime()) / (1000 * 60 * 60 * 24 * 30)));
+    dur = months >= 1 ? `${months}개월 (진행형)` : '1개월내 (진행형)';
+  }
+  return {
+    period: `현재 ${ym(peak.date)}~`,
+    high: `${peak.value.toLocaleString()} (${ym(peak.date)})`,
+    low: `${cur.toLocaleString()} (진행형)`,
+    drop: dd,
+    dur,
+    current: true,
+  };
+}
 
 export function NasdaqBottomPage() {
   const [data, setData] = useState<NasdaqBottomData | null>(null);
@@ -150,9 +171,18 @@ export function NasdaqBottomPage() {
   const bandLo = bands.applied === 'non_recession' ? bands.non_recession.low : bands.recession.low;
   const bandHi = bands.applied === 'non_recession' ? bands.non_recession.high : bands.recession.high;
 
+  const curRow = buildCurrentRow(data);
   const groups = [
-    { title: '리세션 없음 (-19~-37%)', rows: NASDAQ_NON_RECESSION, active: bands.applied === 'non_recession' },
-    { title: '리세션 동반 (-31~-78%)', rows: NASDAQ_RECESSION, active: bands.applied === 'recession' },
+    {
+      title: '리세션 없음 (-19~-37%)',
+      rows: bands.applied === 'non_recession' && curRow ? [...NASDAQ_NON_RECESSION, curRow] : NASDAQ_NON_RECESSION,
+      active: bands.applied === 'non_recession',
+    },
+    {
+      title: '리세션 동반 (-31~-78%)',
+      rows: bands.applied === 'recession' && curRow ? [...NASDAQ_RECESSION, curRow] : NASDAQ_RECESSION,
+      active: bands.applied === 'recession',
+    },
   ];
 
   return (

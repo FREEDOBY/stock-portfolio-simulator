@@ -48,8 +48,29 @@ const KOSPI_NON_RECESSION: BearRow[] = [
   { period: '긴축 베어장 21~22', high: '3,316 (21.6)', low: '2,134 (22.9)', drop: -36, dur: '1년 3개월' },
   { period: '엔캐리+계엄 24', high: '2,896 (24.7)', low: '~2,360 (24.12)', drop: -18, dur: '5개월' },
   { period: '중동쇼크 26.3', high: '6,347 (26.2)', low: '5,052 (26.3)', drop: -20, dur: '1개월' },
-  { period: '현재 26.7', high: '9,385 (26.6)', low: '6,448 (진행형)', drop: -31, dur: '3주', current: true },
 ];
+
+/** 배너와 동일한 라이브 데이터로 '현재' 행 생성 (하드코딩 대신 실데이터 연동) */
+function buildCurrentRow(data: KospiBottomData): BearRow | null {
+  const peak = data.peak;
+  const cur = data.current;
+  const dd = data.drawdown_pct;
+  if (!peak || cur == null || dd == null) return null;
+  const ym = (s?: string) => (s ? `${s.slice(2, 4)}.${Number(s.slice(5, 7))}` : '');
+  let dur = '진행형';
+  if (peak.date) {
+    const months = Math.max(0, Math.round((Date.now() - new Date(peak.date).getTime()) / (1000 * 60 * 60 * 24 * 30)));
+    dur = months >= 1 ? `${months}개월 (진행형)` : '1개월내 (진행형)';
+  }
+  return {
+    period: `현재 ${ym(peak.date)}~`,
+    high: `${peak.value.toLocaleString()} (${ym(peak.date)})`,
+    low: `${cur.toLocaleString()} (진행형)`,
+    drop: dd,
+    dur,
+    current: true,
+  };
+}
 
 const CREDIT_OPTS: { id: CreditTrend; label: string; color: string }[] = [
   { id: 'rising', label: '증가', color: '#ef4444' },
@@ -486,10 +507,15 @@ export function KospiBottomPage() {
           </span>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {[
-            { title: '리세션 없음 (-18~-37%)', rows: KOSPI_NON_RECESSION, active: bands.applied === 'non_recession' },
-            { title: '리세션 동반 (-54% 이상)', rows: KOSPI_RECESSION, active: bands.applied === 'recession' },
-          ].map((grp) => (
+          {(() => {
+            const cur = buildCurrentRow(data);
+            const nonRec = bands.applied === 'non_recession' && cur ? [...KOSPI_NON_RECESSION, cur] : KOSPI_NON_RECESSION;
+            const rec = bands.applied === 'recession' && cur ? [...KOSPI_RECESSION, cur] : KOSPI_RECESSION;
+            return [
+              { title: '리세션 없음 (-18~-37%)', rows: nonRec, active: bands.applied === 'non_recession' },
+              { title: '리세션 동반 (-54% 이상)', rows: rec, active: bands.applied === 'recession' },
+            ];
+          })().map((grp) => (
             <div key={grp.title} className="rounded-lg border p-2"
               style={{ borderColor: grp.active ? (regime?.color || '#64748b') + '60' : '#1e293b' }}>
               <div className="text-xs font-mono mb-2 flex items-center gap-2"
