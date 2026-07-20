@@ -1693,14 +1693,16 @@ class MacroService:
         sma50 = ixic.rolling(10).mean()
         sma120 = ixic.rolling(24).mean()
         sma200 = ixic.rolling(40).mean()
+        rsi = self.calc.rsi(ixic, period=14)  # 주봉 RSI(14)
 
-        def _sma(s, idx):
+        def _at(s, idx):
             v = s.get(idx)
             return round(float(v), 1) if v is not None and pd.notna(v) else None
 
         price = [
             {"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1),
-             "sma50": _sma(sma50, idx), "sma120": _sma(sma120, idx), "sma200": _sma(sma200, idx)}
+             "sma50": _at(sma50, idx), "sma120": _at(sma120, idx), "sma200": _at(sma200, idx),
+             "rsi": _at(rsi, idx)}
             for idx, v in recent.items()
         ]
         monthly = ixic.resample("MS").last().dropna()

@@ -181,7 +181,7 @@ export interface ParabolicEvent {
 
 export interface KospiBottomData {
   available: boolean;
-  price?: Array<{ date: string; value: number; sma50?: number | null; sma120?: number | null; sma200?: number | null }>;
+  price?: Array<{ date: string; value: number; sma50?: number | null; sma120?: number | null; sma200?: number | null; rsi?: number | null }>;
   price_full?: Array<{ date: string; value: number }>;
   parabolic_events?: ParabolicEvent[];
   peak?: { date: string; value: number };
