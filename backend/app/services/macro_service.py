@@ -1520,34 +1520,37 @@ class MacroService:
                     for idx, r in fxdf.iterrows()
                 ]
 
-        # 환율 변동성 급등 구간 — 20일 롤링 변동성이 자기 이력 (평균+1σ) 초과 시 음영
+        # 환율 급등 스트레스 구간 — 변동성 급등(평균+1σ) 중 '원화 약세(환율 상승)' 방향만.
+        # 원화 강세(환율 하락) 변동성은 외국인 유입·회복 신호라 위기 아님 → 제외
         fx_vol_overlays = []
         if fx is not None and len(fx) >= 60:
             ret = fx.pct_change()
             vol = ret.rolling(20).std() * (252 ** 0.5) * 100  # 연율화 %
             thr = float(vol.mean() + vol.std())
             hot = vol > thr
-            start = None
-            prev_idx = None
+
+            def _emit(s, e):
+                # 구간 순변화가 상승(원화 약세)일 때만 스트레스로 인정
+                if (e - s).days < 10:
+                    return
+                seg = fx.loc[s:e]
+                if len(seg) >= 2 and float(seg.iloc[-1]) > float(seg.iloc[0]):
+                    fx_vol_overlays.append({
+                        "start": s.strftime("%Y-%m-%d"), "end": e.strftime("%Y-%m-%d"),
+                        "label": "원화 급락", "type": "volatility",
+                    })
+
+            start = prev_idx = None
             for idx, is_hot in hot.items():
-                if bool(is_hot) and start is None:
-                    start = idx
-                elif not bool(is_hot) and start is not None:
-                    if (prev_idx - start).days >= 10:  # 10일 이상 지속 구간만
-                        fx_vol_overlays.append({
-                            "start": start.strftime("%Y-%m-%d"),
-                            "end": prev_idx.strftime("%Y-%m-%d"),
-                            "label": "변동성 급등", "type": "volatility",
-                        })
-                    start = None
                 if bool(is_hot):
+                    if start is None:
+                        start = idx
                     prev_idx = idx
-            if start is not None and prev_idx is not None and (prev_idx - start).days >= 10:
-                fx_vol_overlays.append({
-                    "start": start.strftime("%Y-%m-%d"),
-                    "end": prev_idx.strftime("%Y-%m-%d"),
-                    "label": "변동성 급등", "type": "volatility",
-                })
+                elif start is not None:
+                    _emit(start, prev_idx)
+                    start = None
+            if start is not None and prev_idx is not None:
+                _emit(start, prev_idx)
 
         # WTI 유가 (주봉 근사 + YoY) — 공급쇼크 모니터
         wti_series = []
