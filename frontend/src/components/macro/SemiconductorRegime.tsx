@@ -235,15 +235,20 @@ export function SemiconductorRegime({ data }: Props) {
         {data.ecos_series && data.ecos_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
             <ChartTitle
-              title="집적회로 수출물가지수 (달러 · 2020=100 · 한국은행)"
-              info="한국은행 ECOS의 집적회로 수출물가지수(달러 기준, 월간)입니다. 한국 IC 수출은 D램·낸드가 지배하므로 D램 컨트랙트 가격의 공식 통계 프록시로 쓰입니다. 메모리 가격 신호의 주지표 — 이 지수의 YoY가 마이너스로 꺾이면 '꺾임'(20점)이 점등됩니다. 2022~23 메모리 겨울과 2025~ 슈퍼사이클이 그대로 보입니다."
+              title="집적회로 수출물가지수 (달러 · 2020=100 · MoM %)"
+              info="한국은행 ECOS의 집적회로 수출물가지수(달러 기준, 월간)입니다. 한국 IC 수출은 D램·낸드가 지배하므로 D램 컨트랙트 가격의 공식 통계 프록시로 쓰입니다. 메모리 가격 신호의 주지표 — YoY가 마이너스로 꺾이면 '꺾임'(20점), 주황 막대(MoM 상승률)가 2개월 연속 둔화 + 직전의 절반 이하면 '상승 둔화'(10점)가 점등됩니다. 레벨이 계속 올라도 막대가 줄어들면 모멘텀이 꺾이는 중입니다."
             />
             <MacroLineChart
               data={data.ecos_series}
-              series={[{ dataKey: 'value', color: '#a78bfa', name: 'IC 수출물가', type: 'area' }]}
+              series={[
+                { dataKey: 'value', color: '#a78bfa', name: 'IC 수출물가', type: 'area' },
+                { dataKey: 'mom', color: '#f59e0b', name: 'MoM %', type: 'bar', yAxisId: 'right' },
+              ]}
               height={220}
               yAxisFormatter={(v) => `${v.toFixed(0)}`}
+              rightYAxisFormatter={(v) => `${v.toFixed(0)}%`}
               yDomain={['auto', 'auto']}
+              referenceLines={[{ y: 0, color: '#64748b', yAxisId: 'right' }]}
             />
           </div>
         )}

@@ -103,7 +103,7 @@ export interface SemiconductorData {
   export_series?: Array<{ date: string; value: number }>;
   ddr4_series?: Array<{ date: string; value: number; qoq: number | null }>;
   hbm3e_series?: Array<{ date: string; contract?: number; spot?: number }>;
-  ecos_series?: Array<{ date: string; value: number }>;
+  ecos_series?: Array<{ date: string; value: number; mom?: number | null; yoy?: number | null }>;
   tsmc_series?: Array<{ date: string; revenue_bn: number; yoy: number }>;
   tf_spot_series?: Array<{
     date: string;

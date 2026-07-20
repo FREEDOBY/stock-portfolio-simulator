@@ -1172,8 +1172,17 @@ class MacroService:
                     hbm_map.setdefault(d, {"date": d})[kind] = p["value"]
         hbm3e_series = sorted(hbm_map.values(), key=lambda x: x["date"])
 
-        # ECOS 집적회로 수출물가지수 (달러기준 월간) / TSMC 월매출 YoY
-        ecos_series = ecos.get("series", []) if ecos.get("available") else []
+        # ECOS 집적회로 수출물가지수 (달러기준 월간) — MoM/YoY 변화율 동봉
+        # MoM 감속이 '상승 둔화' 신호를 구동하므로 차트에서 보여야 함
+        ecos_series = []
+        if ecos.get("available"):
+            ser = ecos["series"]
+            for i, p in enumerate(ser):
+                mom = (round((p["value"] / ser[i - 1]["value"] - 1) * 100, 1)
+                       if i >= 1 and ser[i - 1]["value"] else None)
+                yoy = (round((p["value"] / ser[i - 12]["value"] - 1) * 100, 1)
+                       if i >= 12 and ser[i - 12]["value"] else None)
+                ecos_series.append({**p, "mom": mom, "yoy": yoy})
         tsmc_series = tsmc.get("series", []) if tsmc.get("available") else []
         # TrendForce 스팟 일간 히스토리 (로컬 축적)
         tf_spot_series = tf.get("history", []) if tf.get("available") else []
