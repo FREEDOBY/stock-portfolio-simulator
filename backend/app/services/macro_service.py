@@ -20,6 +20,8 @@ from .customs_export_fetcher import customs_export_fetcher
 from .ecos_fetcher import ecos_fetcher
 from .tsmc_revenue_fetcher import tsmc_revenue_fetcher
 from .trendforce_spot_fetcher import trendforce_spot_fetcher
+from .memory_capex_fetcher import memory_capex_fetcher
+from .regime_history import append_daily as append_regime_history
 
 logger = logging.getLogger(__name__)
 
@@ -831,8 +833,8 @@ class MacroService:
     def _semiconductor_regime(self, raw: MacroRawData, indicators: dict) -> dict:
         """반도체 레짐 = AI 반도체 사이클 고점 '선행' 판독
 
-        선행·전조 (최대 60): 캐펙스 증가율 30 + 메모리 가격 합성 30 — 변곡을 앞서는 전조.
-          풀점등 = 60 = 단독으로 고점 경고 (선행 판독기의 최속 경로)
+        선행·전조 (최대 70): 수요 캐펙스 증가율 30 + 메모리 가격 합성 30
+          + 공급(메모리 3사) 캐펙스 10 — 변곡을 앞서는 전조
         동행·조기확인 (최대 20): TSMC 월매출 10 + 한국 수출 10 — 사이클 활동 그 자체.
           빠른 발표(익월 1일/10일)로 전조를 확정하는 역할, 단독 경고 불가
         확인·주가 (최대 40): 과열·상대강도·모멘텀·RSI — 주가 동조 여부
@@ -860,6 +862,27 @@ class MacroService:
                 "key": "capex", "label": "빅테크 캐펙스", "status": st,
                 "value": f"QoQ {cap_g:+.0f}%",
                 "detail": f"합계 ${capex.get('total_latest')}B",
+            })
+
+        # 1b) 메모리 3사(공급) 캐펙스 YoY — 증설 급팽창은 1~2년 뒤 공급과잉의 전조(역발상),
+        #     감산 전환은 바닥 전조라 고점위험 가점 없이 표기만
+        supply = memory_capex_fetcher.get_capex()
+        sup_yoy = supply.get("growth_yoy")
+        if sup_yoy is not None:
+            if sup_yoy >= 50:
+                st, pts = "증설 과열", 10
+            elif sup_yoy >= 25:
+                st, pts = "증설 가속", 5
+            elif sup_yoy < 0:
+                st, pts = "감산", 0
+            else:
+                st, pts = "확장", 0
+            lead_score += pts
+            leading.append({
+                "key": "supply_capex", "label": "메모리 3사 캐펙스", "status": st,
+                "value": f"YoY {sup_yoy:+.0f}%",
+                "detail": f"합계 ${supply.get('total_latest')}B/분기"
+                          + (" · 바닥 전조" if st == "감산" else ""),
             })
 
         # 2) 메모리 가격 합성 (선행 가격): ECOS 집적회로 수출물가(주지표)
@@ -1091,6 +1114,8 @@ class MacroService:
 
         # 빅테크 캐펙스 분기 추이 (시간순)
         capex_series = _with_qoq(list(reversed(capex.get("total_series", []))))
+        # 메모리 3사(공급) 캐펙스 분기 추이 (시간순)
+        supply_capex_series = _with_qoq(list(reversed(supply.get("total_series", []))))
         # 메모리 vs 로직 주가 (공통 시작=100 재정규화, 주봉 근사)
         mem_logic_series = []
         if mem is not None and logic is not None:
@@ -1153,6 +1178,13 @@ class MacroService:
         # TrendForce 스팟 일간 히스토리 (로컬 축적)
         tf_spot_series = tf.get("history", []) if tf.get("available") else []
 
+        # 판정 이력 로컬 축적 — 판정에는 무영향, 리드타임 사후검증·배점 튜닝용
+        score_history = append_regime_history({
+            "score": score, "lead": lead_score, "coin": coin_score, "conf": conf_score,
+            "phase": phase,
+            "signals": {x["key"]: x["status"] for x in leading + coincident + confirm},
+        })
+
         return {
             "phase": phase,
             "name": info["name"],
@@ -1172,6 +1204,8 @@ class MacroService:
             "ecos_series": ecos_series,
             "tsmc_series": tsmc_series,
             "tf_spot_series": tf_spot_series,
+            "supply_capex_series": supply_capex_series,
+            "score_history": score_history[-180:],
             # 선행·전조 / 동행·조기확인 / 확인·주가
             "leading_signals": leading,
             "coincident_signals": coincident,
@@ -1181,6 +1215,11 @@ class MacroService:
                 "total_latest": capex.get("total_latest"),
                 "growth_qoq": cap_g, "accelerating": cap_accel,
                 "companies": capex.get("companies", []),
+            },
+            "supply_capex": {
+                "total_latest": supply.get("total_latest"),
+                "growth_yoy": sup_yoy, "growth_qoq": supply.get("growth_qoq"),
+                "companies": supply.get("companies", []),
             },
             "dram_ref": {
                 "ddr4_spot": spot_val, "ddr4_spot_dir": spot_dir,

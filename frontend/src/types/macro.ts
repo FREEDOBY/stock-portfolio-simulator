@@ -112,6 +112,21 @@ export interface SemiconductorData {
     ddr5_16gb: number | null;
     avg_chg_pct: number | null;
   }>;
+  supply_capex_series?: Array<{ date: string; value: number; qoq: number | null }>;
+  score_history?: Array<{
+    date: string;
+    score: number;
+    lead: number;
+    coin: number;
+    conf: number;
+    phase: string;
+  }>;
+  supply_capex?: {
+    total_latest: number | null;
+    growth_yoy: number | null;
+    growth_qoq: number | null;
+    companies: Array<{ name: string; ticker: string; latest: number }>;
+  };
   // 참고 실데이터
   capex: {
     total_latest: number | null;

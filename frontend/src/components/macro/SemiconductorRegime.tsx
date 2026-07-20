@@ -17,6 +17,7 @@ interface Props {
 const STATUS_COLOR: Record<string, string> = {
   감소: '#ef4444', 꺾임: '#ef4444', 극단: '#ef4444', 과매수: '#ef4444', 롤오버: '#ef4444',
   '증가율 둔화': '#f97316', '상승 둔화': '#f97316', 감속: '#f97316',
+  '증설 과열': '#ef4444', '증설 가속': '#f59e0b', 확장: '#10b981', 감산: '#a78bfa',
   과열: '#f59e0b', 경계: '#f59e0b', 정점: '#f59e0b', 상승: '#f59e0b',
   정상: '#10b981', 가속: '#10b981', 중립: '#64748b', 보합: '#64748b',
 };
@@ -92,7 +93,7 @@ export function SemiconductorRegime({ data }: Props) {
       {/* 선행·전조 (펀더멘탈) — 주축 */}
       <div className="mb-1 flex items-center gap-2">
         <span className="text-xs font-mono text-cyan-400 uppercase tracking-wider">선행 · 전조</span>
-        <span className="text-xs font-mono text-slate-600">캐펙스 증가율·메모리 가격이 변곡을 앞섬 · 풀점등 60 = 단독 경고</span>
+        <span className="text-xs font-mono text-slate-600">수요·공급 캐펙스와 메모리 가격이 변곡을 앞섬 (최대 70)</span>
       </div>
       <div className="grid grid-cols-2 gap-2 mb-3">
         {data.leading_signals.map((s) => <SignalCard key={s.key} s={s} big />)}
@@ -127,6 +128,27 @@ export function SemiconductorRegime({ data }: Props) {
       <div className="space-y-3 mb-3">
         <div className="text-xs font-mono text-cyan-400 uppercase tracking-wider">추세 · 시계열</div>
 
+        {/* 고점 위험 스코어 추이 (판정 이력 · 로컬 축적) */}
+        {data.score_history && data.score_history.length > 0 && (
+          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
+            <ChartTitle
+              title={`고점 위험 스코어 추이 (${data.score_history.length}일 축적)`}
+              info="판정기가 매일 계산한 고점 위험 스코어의 이력입니다(로컬 축적). 40 = 과열 주의, 60 = 고점 경고 임계선. 다음 변곡에서 '경고가 고점보다 며칠 앞섰나'를 실측 검증하고 배점을 데이터로 조정하기 위한 기록으로, 판정 자체에는 영향을 주지 않습니다."
+            />
+            <MacroLineChart
+              data={data.score_history}
+              series={[{ dataKey: 'score', color: '#f59e0b', name: '스코어', dot: true }]}
+              height={180}
+              yAxisFormatter={(v) => `${v.toFixed(0)}`}
+              yDomain={[0, 100]}
+              referenceLines={[
+                { y: 40, color: '#f97316', label: '과열' },
+                { y: 60, color: '#ef4444', label: '경고' },
+              ]}
+            />
+          </div>
+        )}
+
         {/* 메모리 vs 로직 주가 (정규화 지수) */}
         {data.mem_logic_series && data.mem_logic_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
@@ -157,6 +179,27 @@ export function SemiconductorRegime({ data }: Props) {
               data={data.capex_series}
               series={[
                 { dataKey: 'value', color: '#10b981', name: '캐펙스', type: 'bar' },
+                { dataKey: 'qoq', color: '#f59e0b', name: 'QoQ %', yAxisId: 'right', dot: true },
+              ]}
+              height={220}
+              yAxisFormatter={(v) => `$${v}B`}
+              rightYAxisFormatter={(v) => `${v.toFixed(0)}%`}
+              referenceLines={[{ y: 0, color: '#64748b', yAxisId: 'right' }]}
+            />
+          </div>
+        )}
+
+        {/* 메모리 3사(공급) 캐펙스 분기 추이 */}
+        {data.supply_capex_series && data.supply_capex_series.length > 0 && (
+          <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
+            <ChartTitle
+              title="메모리 3사 캐펙스 분기 ($B · QoQ %)"
+              info="삼성전자·SK하이닉스·마이크론(공급 측)의 분기 설비투자 합계입니다(달러 환산, 3사 모두 보고한 분기만). 수요 캐펙스와 반대로 읽습니다 — 증설 급팽창(YoY +50%↑)은 1~2년 뒤 공급과잉·가격붕괴의 전조(고점 위험 가점)이고, 감산 전환(YoY 마이너스)은 역사적으로 메모리 바닥의 전조입니다. 마이크론은 회계분기라 캘린더 분기로 근사합니다."
+            />
+            <MacroLineChart
+              data={data.supply_capex_series}
+              series={[
+                { dataKey: 'value', color: '#a78bfa', name: '공급 캐펙스', type: 'bar' },
                 { dataKey: 'qoq', color: '#f59e0b', name: 'QoQ %', yAxisId: 'right', dot: true },
               ]}
               height={220}
