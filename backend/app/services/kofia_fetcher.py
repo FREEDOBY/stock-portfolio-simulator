@@ -49,7 +49,7 @@ class KofiaFetcher:
             raise RuntimeError("KOFIA_API_KEY not set")
         p = {
             "resultType": "json",
-            "numOfRows": 300,
+            "numOfRows": 2000,
             "pageNo": 1,
         }
         if params:
@@ -64,8 +64,11 @@ class KofiaFetcher:
         except ValueError:
             raise RuntimeError(f"KOFIA non-JSON response: {r.text[:200]}")
 
-    def get_credit_balance(self, months: int = 8) -> list[dict]:
-        """신용공여 잔고 시계열 [{date, value}] (실패 시 [])"""
+    def get_credit_balance(self, months: int = 60) -> list[dict]:
+        """신용공여 잔고 시계열 [{date, value}] (실패 시 [])
+
+        data.go.kr 제공 범위는 2021-11~ (약 1,100+ 거래일) — 기본 전체 요청.
+        """
         end = datetime.now()
         begin = end - timedelta(days=months * 31)
         try:
@@ -100,7 +103,7 @@ class KofiaFetcher:
         out.sort(key=lambda x: x["date"])
         return out
 
-    def get_forced_selling(self, months: int = 3) -> list[dict]:
+    def get_forced_selling(self, months: int = 60) -> list[dict]:
         """반대매매 시계열 [{date, amount, ratio, ucol}] (실패 시 [])
 
         증시자금 오퍼레이션에서:

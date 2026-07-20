@@ -113,6 +113,16 @@ export function KospiBottomPage() {
     [data],
   );
 
+  // B/C 기본 뷰 = 최근 6개월(120거래일) — Brush로 전체 이력(2021.11~) 확장 가능
+  const creditRange = useMemo<[number, number] | null>(
+    () => (creditChart.length > 130 ? [creditChart.length - 120, creditChart.length - 1] : null),
+    [creditChart],
+  );
+  const forcedRange = useMemo<[number, number] | null>(
+    () => (forcedChart.length > 130 ? [forcedChart.length - 120, forcedChart.length - 1] : null),
+    [forcedChart],
+  );
+
   // A섹션 기본 뷰 = 현재 이벤트 구간 (base 3개월 전 ~ 현재) — Brush로 5년 전체 확장 가능
   const currentRange = useMemo<[number, number] | null>(() => {
     const price = data?.price ?? [];
@@ -503,9 +513,11 @@ export function KospiBottomPage() {
                 height={300}
                 yAxisFormatter={(v) => `${v.toFixed(1)}조`}
                 yDomain={['auto', 'auto']}
+                brush
+                brushRange={creditRange}
               />
               <p className="text-xs font-mono text-slate-600 mt-1">
-                ~{creditChart[creditChart.length - 1]?.date} · 최근 {creditChart.length}거래일 · KOFIA (T+2 영업일 공표)
+                ~{creditChart[creditChart.length - 1]?.date} · 기본 6개월 · 하단 바 = 전체 {creditChart.length}거래일(2021.11~) · KOFIA (T+2 영업일 공표)
               </p>
             </div>
           )}
@@ -556,14 +568,16 @@ export function KospiBottomPage() {
                 data={forcedChart}
                 series={[
                   { dataKey: 'amount', color: '#ef4444', name: '반대매매 (억)', type: 'bar' },
-                  { dataKey: 'ratio', color: '#06b6d4', name: '미수금 대비 %', yAxisId: 'right', dot: true },
+                  { dataKey: 'ratio', color: '#06b6d4', name: '미수금 대비 %', yAxisId: 'right' },
                 ]}
                 height={300}
                 yAxisFormatter={(v) => `${v}억`}
                 rightYAxisFormatter={(v) => `${v}%`}
+                brush
+                brushRange={forcedRange}
               />
               <p className="text-xs font-mono text-slate-600 mt-1">
-                ~{forcedChart[forcedChart.length - 1]?.date} · 최근 {forcedChart.length}거래일 · KOFIA (T+2 영업일 공표)
+                ~{forcedChart[forcedChart.length - 1]?.date} · 기본 6개월 · 하단 바 = 전체 {forcedChart.length}거래일(2021.11~) · KOFIA (T+2 영업일 공표)
               </p>
             </div>
           )}
