@@ -3,8 +3,9 @@
 402Y014(수출물가지수 기본분류) / 309112AA(집적회로) / D(달러기준), 2020=100.
 한국 집적회로 수출은 D램·낸드가 지배 → D램 컨트랙트 가격의 안정적 공식 프록시.
 
-실키(ECOS_API_KEY)면 5년치 → YoY 계산. 키 없으면 sample 키(10건 제한)로
-최근 10개월만 → YoY 불가, 3개월 변화율로 대체.
+실키(ECOS_API_KEY)면 10년치 → YoY 계산 + 직전 사이클 고점(2017~18·2021)
+비교 가능. 키 없으면 sample 키(10건 제한)로 최근 10개월만 → YoY 불가,
+3개월 변화율로 대체.
 """
 import logging
 import os
@@ -46,7 +47,7 @@ class EcosFetcher:
                 y, m = y - 1, m + 12
             start, limit = f"{y}{m:02d}", 10
         else:
-            start, limit = f"{now.year - 5}{now.month:02d}", 100
+            start, limit = f"{now.year - 10}{now.month:02d}", 200
 
         url = f"{_BASE}/{key}/json/kr/1/{limit}/{_STAT}/M/{start}/{end}/{_ITEM}/{_CCY}"
         try:
