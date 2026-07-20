@@ -1490,9 +1490,19 @@ class MacroService:
         investor_flow = naver_flow_fetcher.get_investor_flow()
 
         # 차트용 다운샘플 (주봉 근사)
+        # 이동평균 (일봉 기준 50/120/200일) → 주봉 시점에 정렬
+        sma50 = kospi.rolling(50).mean()
+        sma120 = kospi.rolling(120).mean()
+        sma200 = kospi.rolling(200).mean()
         weekly = kospi.iloc[::5]
+
+        def _sma(s, idx):
+            v = s.get(idx)
+            return round(float(v), 1) if v is not None and pd.notna(v) else None
+
         price = [
-            {"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1)}
+            {"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1),
+             "sma50": _sma(sma50, idx), "sma120": _sma(sma120, idx), "sma200": _sma(sma200, idx)}
             for idx, v in weekly.items()
         ]
         # 전체이력 월봉 (역대 약세장 오버레이용)
