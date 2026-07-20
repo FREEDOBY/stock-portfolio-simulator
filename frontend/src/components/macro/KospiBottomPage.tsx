@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { fetchKospiBottom, setKospiManual } from '../../api/macro';
 import { MacroLineChart } from './charts/MacroLineChart';
+import { InfoTip } from './charts/InfoTip';
 import type { CrisisOverlay } from './charts/crisisOverlayConfig';
 import type { KospiBottomData, CreditTrend, ForcedSelling } from '../../types/macro';
 
@@ -226,6 +227,7 @@ export function KospiBottomPage() {
         <div className="flex items-center gap-2 mb-1">
           <span className="text-sm font-mono font-bold text-cyan-400">A.</span>
           <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">파라볼릭 되돌림</h3>
+          <InfoTip text="KOSPI 일봉 5년에서 peak(최고점)와 base(peak 직전 마지막 ≥15% 조정의 저점 = 마지막 가속 상승의 출발점)를 잡아, 상승분에 피보나치 비율을 적용한 되돌림 참고선입니다. 배너의 '되돌림 %' = (peak−현재가)÷(peak−base), 즉 상승분을 얼마나 반납했는지입니다. 역대 사례에서 61.8% 레벨이 자주 바닥이었습니다. 기본 뷰는 현재 이벤트 구간이며 하단 바로 5년 전체를 볼 수 있습니다." />
           <span className="text-xs font-mono text-slate-600 ml-auto">
             peak {retracement.peak.toLocaleString()} · base {retracement.base.toLocaleString()} ({data.base?.date}) · 하단 바 = 5년 전체
           </span>
@@ -263,6 +265,7 @@ export function KospiBottomPage() {
           <div className="flex items-center gap-2 mb-1">
             <span className="text-sm font-mono font-bold text-cyan-400">수급</span>
             <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">외국인·기관·개인 순매수</h3>
+            <InfoTip text="네이버 증권의 투자자별 일별 순매수(억원)입니다. 외국인 지속 순매도 + 개인 순매수 조합은 하락 지속 신호, 외국인 순매수 전환은 저점의 단서로 참고합니다." />
             <span className="text-xs font-mono text-slate-600 ml-auto">단위: 억원 · 네이버</span>
           </div>
           <MacroLineChart
@@ -285,7 +288,10 @@ export function KospiBottomPage() {
       {/* 낙폭 밴드 게이지 */}
       <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">낙폭 밴드</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">낙폭 밴드</h3>
+            <InfoTip text="peak 대비 현재 낙폭이 역대 약세장 분포의 어느 구간에 있는지 보여주는 게이지입니다. 역사 패턴상 리세션이 없으면 -19~-37%에서, 리세션 동반이면 -37~-55%에서 바닥이 형성됐고 중간지대는 드뭅니다. 어느 밴드를 적용할지는 반도체 레짐(피크=비리세션 / 하강=리세션)이 분기합니다." />
+          </div>
           <span className="text-xs font-mono" style={{ color: regime?.color }}>
             적용: {bands.applied === 'non_recession' ? '비리세션 (-19~-37%)' : '리세션 (-37~-55%)'} ← 레짐 {regime?.name}
           </span>
@@ -320,6 +326,7 @@ export function KospiBottomPage() {
         <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-1">
             <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">역대 파라볼릭 되돌림 (전체 이력)</h3>
+            <InfoTip text="1996년~ 월봉에서 '사상 신고가 대비 -25% 이상 하락' 이벤트를 자동 검출해, 이벤트별 base·저점·되돌림 깊이·도달 Fib 레벨·소요 기간을 계산한 표입니다. 행을 클릭하면 해당 구간으로 확대되고 그 이벤트의 Fib 기준선이 차트에 표시됩니다. 진행형(현재) 이벤트는 일봉 기준으로 항상 포함됩니다. 역대 6회 중 3회가 61.8%에서 바닥을 잡았습니다. 주의: IMF 행은 1996년 이전 데이터가 없어 base가 부정확합니다." />
             <span className="text-xs font-mono text-slate-600 ml-auto">
               1996~ 월봉 · 음영 = 약세장 · 하단 바 드래그 = 확대/스크롤
             </span>
@@ -455,6 +462,7 @@ export function KospiBottomPage() {
           <div className="flex items-center gap-2 mb-3">
             <span className="text-sm font-mono font-bold text-cyan-400">B.</span>
             <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">신용잔고 추이</h3>
+            <InfoTip text="KOFIA 일별 신용융자 잔고(조원)입니다. 하락장에서 잔고가 계속 줄면 레버리지 청산이 진행 중이고, 줄어들다가 멈추면(멈춤) 강제 매물이 소진됐다는 뜻 — 저점 판정의 확인 신호 중 하나입니다. 매수신호 = 청산이 '멈춤'." />
             {data.credit_source === 'auto' ? (
               <span className="text-xs font-mono text-emerald-400/80 ml-auto">
                 자동 · KOFIA{data.credit_latest ? ` (${(data.credit_latest / 1e12).toFixed(1)}조)` : ''}
@@ -505,6 +513,7 @@ export function KospiBottomPage() {
           <div className="flex items-center gap-2 mb-3">
             <span className="text-sm font-mono font-bold text-cyan-400">C.</span>
             <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">반대매매량</h3>
+            <InfoTip text="KOFIA 미수금 반대매매 금액(빨간 막대, 억원)과 미수금 대비 비중(시안 라인, %)입니다. 급증(스파이크)은 강제 디레버리징이 진행 중이라는 뜻이고, 스파이크 후 진정되면 투매(캐피튤레이션)가 마무리 국면에 가깝다는 확인 신호입니다." />
             {data.forced_source === 'auto' ? (
               <span className="text-xs font-mono text-emerald-400/80 ml-auto">
                 자동 · KOFIA

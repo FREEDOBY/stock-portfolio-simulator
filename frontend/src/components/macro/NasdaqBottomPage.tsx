@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { fetchNasdaqBottom } from '../../api/macro';
 import { MacroLineChart } from './charts/MacroLineChart';
+import { InfoTip } from './charts/InfoTip';
 import type { CrisisOverlay } from './charts/crisisOverlayConfig';
 import type { NasdaqBottomData } from '../../types/macro';
 
@@ -199,6 +200,7 @@ export function NasdaqBottomPage() {
         <div className="flex items-center gap-2 mb-1">
           <span className="text-sm font-mono font-bold text-cyan-400">A.</span>
           <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">파라볼릭 되돌림</h3>
+          <InfoTip text="나스닥 주봉 5년 창에서 peak(최고점)와 base(peak 직전 마지막 ≥15% 조정의 저점 = 마지막 가속 상승의 출발점, 코스피와 동일 규칙)를 잡아 피보나치 되돌림 레벨을 계산합니다. 배너의 '되돌림 %' = 상승분 반납 비율. 주봉 종가 기준이라 base가 일중 저점보다 약간 높을 수 있습니다(오차 ~2%). 기본 뷰는 현재 이벤트 구간, 하단 바로 5년 전체 확대 가능." />
           <span className="text-xs font-mono text-slate-600 ml-auto">
             peak {retracement.peak.toLocaleString()} · base {retracement.base.toLocaleString()} ({data.base?.date}) · 하단 바 = 5년 전체
           </span>
@@ -232,7 +234,10 @@ export function NasdaqBottomPage() {
       {/* 낙폭 밴드 게이지 */}
       <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">낙폭 밴드</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">낙폭 밴드</h3>
+            <InfoTip text="peak 대비 현재 낙폭이 역대 나스닥 약세장 분포의 어느 구간인지 보여주는 게이지입니다. 리세션이 없으면 -19~-37%, 리세션 동반이면 -31~-78%(닷컴 -78%)까지 깊어졌던 것이 역사 패턴이며, 적용 밴드는 반도체 레짐이 분기합니다. 나스닥 -20% 돌파는 코스피 CASE 2(감익 사이클) 전환 트리거로 씁니다." />
+          </div>
           <span className="text-xs font-mono" style={{ color: regime?.color }}>
             적용: {bands.applied === 'non_recession' ? '비리세션 (-19~-37%)' : '리세션 (-31~-78%)'} ← 레짐 {regime?.name}
           </span>
@@ -257,6 +262,7 @@ export function NasdaqBottomPage() {
         <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-1">
             <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">역대 나스닥 약세장 (전체 이력)</h3>
+            <InfoTip text="1971년~ 주봉 전체 이력에서 '사상 신고가 대비 -25% 이상 하락' 이벤트를 자동 검출한 표입니다. 행 클릭 = 해당 구간 확대 + 그 이벤트의 Fib 레벨 표시. 역대 9회 중 4회가 61.8%에서 바닥, 4회는 >100%(상승분 전체 반납)였습니다. 주의: 2007 금융위기는 닷컴 고점(5,048)을 회복하기 전의 2차 하락이라 별도 이벤트로 검출되지 않고 닷컴 이벤트에 흡수됩니다." />
             <span className="text-xs font-mono text-slate-600 ml-auto">1971~ 월봉 · 음영 = 약세장 · 하단 바 드래그 = 확대/스크롤</span>
           </div>
           <MacroLineChart
