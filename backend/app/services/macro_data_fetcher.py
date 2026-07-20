@@ -106,7 +106,7 @@ class MacroDataFetcher:
 
         yahoo_configs = [
             ("nasdaq_weekly", "^IXIC", "1wk", "max"),
-            ("nasdaq_daily", "^IXIC", "1d", "1y"),
+            ("nasdaq_daily", "^IXIC", "1d", "5y"),
             ("vix", "^VIX", "1d", "max"),
             ("dxy", "DX-Y.NYB", "1d", "max"),
             # 반도체 레짐용 (일간 2년)

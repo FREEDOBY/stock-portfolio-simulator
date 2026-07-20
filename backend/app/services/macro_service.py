@@ -1693,16 +1693,24 @@ class MacroService:
         sma50 = ixic.rolling(10).mean()
         sma120 = ixic.rolling(24).mean()
         sma200 = ixic.rolling(40).mean()
-        rsi = self.calc.rsi(ixic, period=14)  # 주봉 RSI(14)
+        # RSI는 트레이더 기준에 맞춰 일봉(14)으로 계산 후 주봉 차트 시점에 정렬(asof)
+        daily = self._points_to_pd(raw.nasdaq_daily)
+        rsi_daily = self.calc.rsi(daily, period=14) if daily is not None and len(daily) > 20 else None
 
         def _at(s, idx):
             v = s.get(idx)
             return round(float(v), 1) if v is not None and pd.notna(v) else None
 
+        def _rsi_at(idx):
+            if rsi_daily is None:
+                return None
+            v = rsi_daily.asof(idx)  # 해당 주봉 날짜 시점의 최신 일봉 RSI
+            return round(float(v), 1) if pd.notna(v) else None
+
         price = [
             {"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1),
              "sma50": _at(sma50, idx), "sma120": _at(sma120, idx), "sma200": _at(sma200, idx),
-             "rsi": _at(rsi, idx)}
+             "rsi": _rsi_at(idx)}
             for idx, v in recent.items()
         ]
         monthly = ixic.resample("MS").last().dropna()
