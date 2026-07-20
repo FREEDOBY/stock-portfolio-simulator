@@ -1502,15 +1502,21 @@ class MacroService:
             if monthly is not None else []
         )
         # 환율 vs KOSPI (주봉 근사 병합) — 역상관·"환율 정점 = 지수 바닥" 시각화용
+        # 원값(코스피 수천 vs 환율 천 단위)은 스케일이 달라 등락폭이 안 보이므로
+        # 공통 시작=100 정규화 → 같은 축에서 상대 등락 비교. 원값은 별도 필드로 보존
         fx_series = []
         if fx is not None:
             fxdf = pd.concat([kospi, fx], axis=1).dropna()
             if not fxdf.empty:
                 fxdf.columns = ["kospi", "usdkrw"]
                 fxdf = fxdf.iloc[::5]
+                k0, f0 = float(fxdf["kospi"].iloc[0]), float(fxdf["usdkrw"].iloc[0])
                 fx_series = [
-                    {"date": idx.strftime("%Y-%m-%d"), "kospi": round(float(r["kospi"]), 1),
-                     "usdkrw": round(float(r["usdkrw"]), 1)}
+                    {"date": idx.strftime("%Y-%m-%d"),
+                     "kospi": round(float(r["kospi"]) / k0 * 100, 1),
+                     "usdkrw": round(float(r["usdkrw"]) / f0 * 100, 1),
+                     "kospi_raw": round(float(r["kospi"]), 1),
+                     "usdkrw_raw": round(float(r["usdkrw"]), 1)}
                     for idx, r in fxdf.iterrows()
                 ]
 

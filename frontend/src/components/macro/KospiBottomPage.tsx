@@ -336,7 +336,7 @@ export function KospiBottomPage() {
         <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-3">
             <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">환율 vs KOSPI</h3>
-            <InfoTip text="원/달러 환율과 코스피의 역상관을 겹쳐 보는 차트입니다. 원화 약세 → 외국인 환손실 → 자금 이탈 → 지수 하락의 되먹임 때문에, 역사적으로 환율 정점 통과(피크아웃)가 코스피 바닥과 동행/선행했습니다 (2022.10 환율 1,440 정점 = 코스피 2,134 바닥). 환율이 26주 고점 대비 -2.5% 이상 꺾이면 '피크아웃' 확인 신호가 점등되고 저점 판정 확인 3축(신용·반대매매·환율) 중 하나로 계산됩니다." />
+            <InfoTip text="원/달러 환율과 코스피의 역상관을 겹쳐 보는 차트입니다. 스케일이 크게 달라(코스피 수천 vs 환율 천 단위) 둘 다 구간 시작=100으로 정규화해 상대 등락을 같은 축에서 비교합니다. 원화 약세 → 외국인 환손실 → 자금 이탈 → 지수 하락의 되먹임 때문에, 역사적으로 환율 정점 통과(피크아웃)가 코스피 바닥과 동행/선행했습니다 (2022.10 환율 정점 = 코스피 바닥). 환율이 26주 고점 대비 -2.5% 이상 꺾이면 '피크아웃' 확인 신호가 점등되고 저점 판정 확인 3축(신용·반대매매·환율) 중 하나로 계산됩니다." />
             {data.fx_peakout?.status && (
               <span
                 className="text-xs font-mono px-2 py-0.5 rounded border ml-auto"
@@ -354,14 +354,13 @@ export function KospiBottomPage() {
           <MacroLineChart
             data={data.fx_series}
             series={[
-              { dataKey: 'kospi', color: '#06b6d4', name: 'KOSPI', yAxisId: 'left' },
-              { dataKey: 'usdkrw', color: '#f59e0b', name: '원/달러', yAxisId: 'right' },
+              { dataKey: 'kospi', color: '#06b6d4', name: 'KOSPI (시작=100)' },
+              { dataKey: 'usdkrw', color: '#f59e0b', name: '원/달러 (시작=100)' },
             ]}
             height={300}
-            yAxisFormatter={(v) => `${(v / 1000).toFixed(1)}k`}
-            rightYAxisFormatter={(v) => `${v.toFixed(0)}원`}
-            rightYDomain={['auto', 'auto']}
-            referenceLines={[{ y: 1400, color: '#ef4444', label: '1,400 (위험)', yAxisId: 'right' }]}
+            yAxisFormatter={(v) => `${v.toFixed(0)}`}
+            yDomain={['auto', 'auto']}
+            referenceLines={[{ y: 100, color: '#475569', label: '기준 100' }]}
             brush
           />
         </div>

@@ -207,7 +207,7 @@ export interface KospiBottomData {
   forced_ratio?: number | null;
   forced_series?: Array<{ date: string; amount: number | null; ratio: number | null; ucol: number | null }>;
   investor_flow?: Array<{ date: string; individual: number; foreign: number; institution: number }>;
-  fx_series?: Array<{ date: string; kospi: number; usdkrw: number }>;
+  fx_series?: Array<{ date: string; kospi: number; usdkrw: number; kospi_raw: number; usdkrw_raw: number }>;
   fx_peakout?: {
     status: 'peaked' | 'at_high' | 'easing' | null;
     off_high_pct: number | null;
