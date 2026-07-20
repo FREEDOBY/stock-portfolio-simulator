@@ -1455,8 +1455,27 @@ class MacroService:
             forced = self._forced_selling
             forced_source = "manual"
         forced_latest = forced_series[-1] if forced_series else None
+        # 환율 피크아웃 (원/달러) — 외국인 수급 확인 신호: 환율 정점 통과 ≈ 코스피 바닥 근접
+        fx = self._points_to_pd(raw.usdkrw)
+        fx_peakout = {"status": None, "off_high_pct": None, "high": None, "now": None}
+        fx_peaked = False
+        if fx is not None and len(fx) >= 30:
+            win = fx.iloc[-126:]
+            fx_high, fx_now = float(win.max()), float(fx.iloc[-1])
+            off = round((fx_now / fx_high - 1) * 100, 2)
+            if off <= -2.5:
+                fx_st = "peaked"      # 고점 대비 -2.5% 이상 꺾임 → 피크아웃 확인
+                fx_peaked = True
+            elif off >= -0.5:
+                fx_st = "at_high"     # 26주 고점권 → 압력 지속
+            else:
+                fx_st = "easing"      # 완화 시작 (미확정)
+            fx_peakout = {"status": fx_st, "off_high_pct": off,
+                          "high": round(fx_high, 1), "now": round(fx_now, 1)}
+
         band_reached = drawdown <= (-19 if applied == "non_recession" else -37)
-        confirm = int(credit == "stalling") + int(forced == "easing")
+        # 저점 확인 3축: 신용 청산 멈춤 · 반대매매 진정 · 환율 피크아웃 (2/3 충족 = 근접)
+        confirm = int(credit == "stalling") + int(forced == "easing") + int(fx_peaked)
 
         if applied == "recession" and drawdown > -37:
             verdict, vcolor = "저점 미도래 (현금 유지)", "#ef4444"
@@ -1482,6 +1501,31 @@ class MacroService:
             [{"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1)} for idx, v in monthly.items()]
             if monthly is not None else []
         )
+        # 환율 vs KOSPI (주봉 근사 병합) — 역상관·"환율 정점 = 지수 바닥" 시각화용
+        fx_series = []
+        if fx is not None:
+            fxdf = pd.concat([kospi, fx], axis=1).dropna()
+            if not fxdf.empty:
+                fxdf.columns = ["kospi", "usdkrw"]
+                fxdf = fxdf.iloc[::5]
+                fx_series = [
+                    {"date": idx.strftime("%Y-%m-%d"), "kospi": round(float(r["kospi"]), 1),
+                     "usdkrw": round(float(r["usdkrw"]), 1)}
+                    for idx, r in fxdf.iterrows()
+                ]
+
+        # WTI 유가 (주봉 근사 + YoY) — 공급쇼크 모니터
+        wti_series = []
+        wti = self._points_to_pd(raw.wti)
+        if wti is not None and len(wti) > 10:
+            wtiw = wti.iloc[::5]
+            wti_yoy = wtiw / wtiw.shift(52) - 1
+            wti_series = [
+                {"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1),
+                 "yoy": round(float(wti_yoy.loc[idx]) * 100, 1) if pd.notna(wti_yoy.loc[idx]) else None}
+                for idx, v in wtiw.items()
+            ]
+
         # 역대 파라볼릭 고점 이벤트 (월봉, ≥25% 낙폭)
         parabolic_events = self._detect_parabolic_events(monthly) if monthly is not None else []
         # 진행형 이벤트는 일봉 기준으로 대체 (월봉 종가 -25% 검출 전에도 항상 표시)
@@ -1531,6 +1575,9 @@ class MacroService:
             "forced_ratio": (forced_latest or {}).get("ratio") if forced_latest else None,
             "forced_series": forced_series[-1200:],
             "investor_flow": investor_flow,
+            "fx_series": fx_series,
+            "fx_peakout": fx_peakout,
+            "wti_series": wti_series,
             "verdict": verdict,
             "verdict_color": vcolor,
         }

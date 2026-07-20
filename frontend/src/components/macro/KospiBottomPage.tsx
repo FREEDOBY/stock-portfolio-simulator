@@ -331,6 +331,64 @@ export function KospiBottomPage() {
         </p>
       </div>
 
+      {/* 환율 · 유가 (코스피 매크로 압력) */}
+      {data.fx_series && data.fx_series.length > 0 && (
+        <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">환율 vs KOSPI</h3>
+            <InfoTip text="원/달러 환율과 코스피의 역상관을 겹쳐 보는 차트입니다. 원화 약세 → 외국인 환손실 → 자금 이탈 → 지수 하락의 되먹임 때문에, 역사적으로 환율 정점 통과(피크아웃)가 코스피 바닥과 동행/선행했습니다 (2022.10 환율 1,440 정점 = 코스피 2,134 바닥). 환율이 26주 고점 대비 -2.5% 이상 꺾이면 '피크아웃' 확인 신호가 점등되고 저점 판정 확인 3축(신용·반대매매·환율) 중 하나로 계산됩니다." />
+            {data.fx_peakout?.status && (
+              <span
+                className="text-xs font-mono px-2 py-0.5 rounded border ml-auto"
+                style={{
+                  color: data.fx_peakout.status === 'peaked' ? '#10b981' : data.fx_peakout.status === 'at_high' ? '#ef4444' : '#f59e0b',
+                  borderColor: (data.fx_peakout.status === 'peaked' ? '#10b981' : data.fx_peakout.status === 'at_high' ? '#ef4444' : '#f59e0b') + '50',
+                  backgroundColor: (data.fx_peakout.status === 'peaked' ? '#10b981' : data.fx_peakout.status === 'at_high' ? '#ef4444' : '#f59e0b') + '15',
+                }}
+              >
+                {data.fx_peakout.status === 'peaked' ? '환율 피크아웃 ✓' : data.fx_peakout.status === 'at_high' ? '환율 고점권 (압력 지속)' : '환율 완화 중 (미확정)'}
+                {' · '}{data.fx_peakout.now?.toLocaleString()}원 (고점 대비 {data.fx_peakout.off_high_pct}%)
+              </span>
+            )}
+          </div>
+          <MacroLineChart
+            data={data.fx_series}
+            series={[
+              { dataKey: 'kospi', color: '#06b6d4', name: 'KOSPI', yAxisId: 'left' },
+              { dataKey: 'usdkrw', color: '#f59e0b', name: '원/달러', yAxisId: 'right' },
+            ]}
+            height={300}
+            yAxisFormatter={(v) => `${(v / 1000).toFixed(1)}k`}
+            rightYAxisFormatter={(v) => `${v.toFixed(0)}원`}
+            rightYDomain={['auto', 'auto']}
+            referenceLines={[{ y: 1400, color: '#ef4444', label: '1,400 (위험)', yAxisId: 'right' }]}
+            brush
+          />
+        </div>
+      )}
+
+      {data.wti_series && data.wti_series.length > 0 && (
+        <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-mono text-slate-300 uppercase tracking-wider">WTI 유가 ($ · YoY %)</h3>
+            <InfoTip text="한국은 원유 전량 수입국이라 유가 급등 = 무역수지 악화 + 원화 약세 + 기업 마진 압박의 삼중고입니다. 단, 코스피와의 상관은 원인에 따라 다릅니다 — 수요 견인 상승(글로벌 호황)은 동반 상승, 공급 쇼크(전쟁·봉쇄, 2026 중동쇼크)는 역방향. 그래서 오버레이하지 않고 단독으로 두며, YoY(주황)가 급등하는 '속도'가 빠를 때(공급 쇼크형)를 위험 신호로 읽습니다." />
+          </div>
+          <MacroLineChart
+            data={data.wti_series}
+            series={[
+              { dataKey: 'value', color: '#a78bfa', name: 'WTI $', type: 'area' },
+              { dataKey: 'yoy', color: '#f59e0b', name: 'YoY %', yAxisId: 'right' },
+            ]}
+            height={260}
+            yAxisFormatter={(v) => `$${v.toFixed(0)}`}
+            rightYAxisFormatter={(v) => `${v.toFixed(0)}%`}
+            yDomain={['auto', 'auto']}
+            referenceLines={[{ y: 0, color: '#64748b', yAxisId: 'right' }]}
+            brush
+          />
+        </div>
+      )}
+
       {/* 전체이력 차트 + 역대 파라볼릭 되돌림 (Brush 확대/스크롤) */}
       {fullPrice.length > 0 && (
         <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4">
@@ -585,7 +643,7 @@ export function KospiBottomPage() {
       </div>
 
       <p className="text-xs font-mono text-slate-600 text-center">
-        판정 = 낙폭 밴드 도달 + 신용 청산 멈춤 + 반대매매 진정 (반도체 레짐이 밴드를 분기)
+        판정 = 낙폭 밴드 도달 + 확인 2/3 (신용 청산 멈춤 · 반대매매 진정 · 환율 피크아웃) · 반도체 레짐이 밴드를 분기
       </p>
     </div>
   );

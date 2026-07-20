@@ -52,6 +52,8 @@ class MacroDataFetcher:
             avgo=yahoo_data.get("avgo", []),
             kospi=yahoo_data.get("kospi", []),
             kospi_monthly=yahoo_data.get("kospi_monthly", []),
+            usdkrw=yahoo_data.get("usdkrw", []),
+            wti=yahoo_data.get("wti", []),
             fetched_at=datetime.now().isoformat(),
             errors=errors,
         )
@@ -118,6 +120,9 @@ class MacroDataFetcher:
             ("kospi", "^KS11", "1d", "5y"),
             # 전체이력 월봉 (역대 약세장 오버레이용, 1996~)
             ("kospi_monthly", "^KS11", "1mo", "max"),
+            # 원/달러 환율 + WTI 유가 (코스피 매크로 압력)
+            ("usdkrw", "KRW=X", "1d", "5y"),
+            ("wti", "CL=F", "1d", "5y"),
         ]
 
         for key, ticker, interval, period in yahoo_configs:

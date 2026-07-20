@@ -46,6 +46,8 @@ class MacroRawData(BaseModel):
     # 코스피 저점 판정기용
     kospi: list[SeriesDataPoint] = Field(default_factory=list)
     kospi_monthly: list[SeriesDataPoint] = Field(default_factory=list)  # 전체이력 월봉
+    usdkrw: list[SeriesDataPoint] = Field(default_factory=list)  # 원/달러 (외국인 수급 프록시)
+    wti: list[SeriesDataPoint] = Field(default_factory=list)     # WTI 유가 (공급쇼크 모니터)
     # 메타
     fetched_at: Optional[str] = None
     errors: list[str] = Field(default_factory=list)
