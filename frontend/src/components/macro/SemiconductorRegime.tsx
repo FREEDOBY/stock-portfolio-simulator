@@ -314,14 +314,19 @@ export function SemiconductorRegime({ data }: Props) {
         {data.export_series && data.export_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
             <ChartTitle
-              title="한국 반도체 수출 (월별, 억$ · HS 8542)"
-              info="관세청 무역통계의 월간 반도체(HS 8542) 수출액입니다. 익월 1일에 나오는 세계에서 가장 빠른 반도체 활동 실측(동행·조기확인)으로, 글로벌 반도체 경기의 카나리아 역할을 합니다. YoY 마이너스면 '감소'(10점), +10% 미만이면 '둔화'(5점)가 점등됩니다."
+              title="한국 반도체 수출 (월별, 억$ · MoM %)"
+              info="관세청 무역통계의 월간 반도체(HS 8542) 수출액입니다. 익월 1일에 나오는 세계에서 가장 빠른 반도체 활동 실측(동행·조기확인)으로, 글로벌 반도체 경기의 카나리아 역할을 합니다. 주황 막대는 MoM 증감률 — 조업일수·계절성 영향이 커서 추세 참고용이며, 신호 점수는 YoY 기준입니다(마이너스 '감소' 10점, +10% 미만 '둔화' 5점)."
             />
             <MacroLineChart
               data={data.export_series}
-              series={[{ dataKey: 'value', color: '#22d3ee', name: '수출 억$', type: 'area' }]}
+              series={[
+                { dataKey: 'value', color: '#22d3ee', name: '수출 억$', type: 'area' },
+                { dataKey: 'mom', color: '#f59e0b', name: 'MoM %', type: 'bar', yAxisId: 'right', barSize: 24 },
+              ]}
               height={220}
               yAxisFormatter={(v) => `${v}억`}
+              rightYAxisFormatter={(v) => `${v.toFixed(0)}%`}
+              referenceLines={[{ y: 0, color: '#64748b', yAxisId: 'right' }]}
             />
           </div>
         )}

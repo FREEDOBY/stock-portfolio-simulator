@@ -92,7 +92,10 @@ class CustomsExportFetcher:
         return f"{t // 12:04d}{t % 12 + 1:02d}"
 
     def get_semiconductor_export(self) -> dict:
-        """한국 반도체 수출 YoY + 최근 시계열 (관세청 '1년 이내' 제약 → 12개월 창 2회)"""
+        """한국 반도체 수출 YoY + 최근 시계열 (관세청 '1년 이내' 제약 → 12개월 창 2회)
+
+        전년도 12개월 창을 통째로 받아 최근 12개월 각각의 월별 YoY를 계산.
+        """
         if not self._key:
             return {"available": False}
         now = datetime.now()
@@ -105,14 +108,20 @@ class CustomsExportFetcher:
         latest_p = max(recent)
         latest_v = recent[latest_p]
 
-        # 1년 전 같은 월 (별도 2개월 창)
-        ya_end = self._ym_offset(latest_p, 12)
-        ya_start = self._ym_offset(ya_end, 1)
+        # 전년도 12개월 창 (월별 YoY 계산용)
+        ya_end = self._ym_offset(end, 12)
+        ya_start = self._ym_offset(ya_end, 11)
         yearago = {p: v for p, v in self._monthly_total(ya_start, ya_end).items() if len(p) == 6}
-        ya_v = yearago.get(ya_end)
-        yoy = round((latest_v / ya_v - 1) * 100, 1) if ya_v else None
 
-        series = [{"period": p, "value": round(v / 1e8, 1)} for p, v in sorted(recent.items())]  # 억달러
+        def _yoy(p: str, v: float):
+            ya = yearago.get(self._ym_offset(p, 12))
+            return round((v / ya - 1) * 100, 1) if ya else None
+
+        yoy = _yoy(latest_p, latest_v)
+        series = [
+            {"period": p, "value": round(v / 1e8, 1), "yoy": _yoy(p, v)}
+            for p, v in sorted(recent.items())
+        ]  # 억달러
         return {
             "available": True,
             "series": series,

@@ -1138,10 +1138,15 @@ class MacroService:
                 for idx, v in yoy_s.items()
             ][-60:]
         # 한국 반도체 수출 추이 (월별, 억달러)
-        export_series = [
-            {"date": f"{str(p['period'])[:4]}-{str(p['period'])[4:6]}", "value": p.get("value")}
-            for p in kr_exp.get("series", []) if len(str(p.get("period", ""))) == 6
-        ]
+        export_pts = [p for p in kr_exp.get("series", []) if len(str(p.get("period", ""))) == 6]
+        export_series = []
+        for i, p in enumerate(export_pts):
+            prev = export_pts[i - 1].get("value") if i >= 1 else None
+            mom = round((p["value"] / prev - 1) * 100, 1) if prev else None
+            export_series.append({
+                "date": f"{str(p['period'])[:4]}-{str(p['period'])[4:6]}",
+                "value": p.get("value"), "mom": mom, "yoy": p.get("yoy"),
+            })
 
         # DDR4 가격 추이 (컨트랙트+스팟 병합, $/8Gb) — period_sort_key(YYYY0Q) → YYYY-MM
         def _q2d(psk) -> Optional[str]:

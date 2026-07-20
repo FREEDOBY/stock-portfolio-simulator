@@ -100,7 +100,7 @@ export interface SemiconductorData {
   capex_series?: Array<{ date: string; value: number; qoq: number | null }>;
   mem_logic_series?: Array<{ date: string; memory: number; logic: number }>;
   ppi_series?: Array<{ date: string; value: number }>;
-  export_series?: Array<{ date: string; value: number }>;
+  export_series?: Array<{ date: string; value: number; mom?: number | null; yoy?: number | null }>;
   ddr4_series?: Array<{ date: string; value: number; qoq: number | null }>;
   hbm_gen_series?: Array<{
     date: string;
