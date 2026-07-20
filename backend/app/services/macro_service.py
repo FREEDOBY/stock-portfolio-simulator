@@ -1498,12 +1498,11 @@ class MacroService:
         # 투자자 수급 (외국인/기관/개인 일별 순매수, 네이버)
         investor_flow = naver_flow_fetcher.get_investor_flow()
 
-        # 차트용 다운샘플 (주봉 근사)
-        # 이동평균 (일봉 기준 50/120/200일) → 주봉 시점에 정렬
+        # 차트: 일봉 그대로 (다운샘플 없음) — 이평선·RSI 전부 일봉 기준으로 격자 일치
         sma50 = kospi.rolling(50).mean()
         sma120 = kospi.rolling(120).mean()
         sma200 = kospi.rolling(200).mean()
-        weekly = kospi.iloc[::5]
+        rsi14 = self.calc.rsi(kospi, period=14)
 
         def _sma(s, idx):
             v = s.get(idx)
@@ -1511,8 +1510,9 @@ class MacroService:
 
         price = [
             {"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1),
-             "sma50": _sma(sma50, idx), "sma120": _sma(sma120, idx), "sma200": _sma(sma200, idx)}
-            for idx, v in weekly.items()
+             "sma50": _sma(sma50, idx), "sma120": _sma(sma120, idx), "sma200": _sma(sma200, idx),
+             "rsi": _sma(rsi14, idx)}
+            for idx, v in kospi.items()
         ]
         # 전체이력 월봉 (역대 약세장 오버레이용)
         monthly = self._points_to_pd(raw.kospi_monthly)
@@ -1637,19 +1637,21 @@ class MacroService:
         '-20% 돌파 = CASE 2(감익 사이클) 확률 급등' 트리거 포함.
         한국 전용(수급/신용/반대매매)은 없음.
         """
-        ixic = self._points_to_pd(raw.nasdaq_weekly)  # 주봉, max
+        ixic = self._points_to_pd(raw.nasdaq_weekly)  # 주봉 전체이력 (역대 이벤트·월봉용)
         if ixic is None or len(ixic) < 30:
             return {"available": False}
 
-        # 파라볼릭: 최근 5년 창
-        cutoff = ixic.index[-1] - pd.DateOffset(years=5)
-        recent = ixic[ixic.index >= cutoff]
+        # A차트·peak/base·이평선·RSI는 일봉 기준으로 통일 (일봉 없으면 주봉 폴백)
+        daily = self._points_to_pd(raw.nasdaq_daily)
+        chart_src = daily if daily is not None and len(daily) > 200 else ixic
+        cutoff = chart_src.index[-1] - pd.DateOffset(years=5)
+        recent = chart_src[chart_src.index >= cutoff]
         if len(recent) < 10:
-            recent = ixic
+            recent = chart_src
 
         peak_val = float(recent.max())
         peak_date = recent.idxmax()
-        current_val = float(ixic.iloc[-1])
+        current_val = float(recent.iloc[-1])
         drawdown = round((current_val / peak_val - 1) * 100, 1)
 
         # 파라볼릭 base = peak 직전 마지막 ≥15% 조정의 저점 (코스피와 동일 규칙)
@@ -1689,28 +1691,21 @@ class MacroService:
         else:
             verdict, vcolor = "되돌림 진행 중", "#f97316"
 
-        # 차트: 최근 주봉 + 전체이력 월봉. 이평선은 주봉 환산(50/120/200일 ≈ 10/24/40주)
-        sma50 = ixic.rolling(10).mean()
-        sma120 = ixic.rolling(24).mean()
-        sma200 = ixic.rolling(40).mean()
-        # RSI는 트레이더 기준에 맞춰 일봉(14)으로 계산 후 주봉 차트 시점에 정렬(asof)
-        daily = self._points_to_pd(raw.nasdaq_daily)
-        rsi_daily = self.calc.rsi(daily, period=14) if daily is not None and len(daily) > 20 else None
+        # 차트: 일봉 5년 (다운샘플 없음). 이평선·RSI 전부 일봉 기준 → 격자 일치
+        # 전체 일봉 시계열에서 계산 후 5년 창(recent)에 맞게 잘라 씀
+        sma50 = chart_src.rolling(50).mean()
+        sma120 = chart_src.rolling(120).mean()
+        sma200 = chart_src.rolling(200).mean()
+        rsi14 = self.calc.rsi(chart_src, period=14)
 
         def _at(s, idx):
             v = s.get(idx)
             return round(float(v), 1) if v is not None and pd.notna(v) else None
 
-        def _rsi_at(idx):
-            if rsi_daily is None:
-                return None
-            v = rsi_daily.asof(idx)  # 해당 주봉 날짜 시점의 최신 일봉 RSI
-            return round(float(v), 1) if pd.notna(v) else None
-
         price = [
             {"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1),
              "sma50": _at(sma50, idx), "sma120": _at(sma120, idx), "sma200": _at(sma200, idx),
-             "rsi": _rsi_at(idx)}
+             "rsi": _at(rsi14, idx)}
             for idx, v in recent.items()
         ]
         monthly = ixic.resample("MS").last().dropna()

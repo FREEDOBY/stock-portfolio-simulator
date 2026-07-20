@@ -279,6 +279,21 @@ export function KospiBottomPage() {
           brush
           brushRange={currentRange}
         />
+        {/* RSI(14) 일봉 서브차트 — A차트 기본 확대 구간에 맞춰 슬라이스 */}
+        <div className="mt-1">
+          <div className="text-xs font-mono text-slate-500 mb-1">RSI(14) · 일봉 — 70 과매수 / 30 과매도</div>
+          <MacroLineChart
+            data={currentRange ? (data.price || []).slice(currentRange[0], currentRange[1] + 1) : (data.price || [])}
+            series={[{ dataKey: 'rsi', color: '#a78bfa', name: 'RSI' }]}
+            height={130}
+            yDomain={[0, 100]}
+            referenceLines={[
+              { y: 70, color: '#ef4444', label: '70' },
+              { y: 50, color: '#475569' },
+              { y: 30, color: '#10b981', label: '30' },
+            ]}
+          />
+        </div>
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-3">
           {[
             { label: 'Peak', v: retracement.peak, c: '#64748b' },
