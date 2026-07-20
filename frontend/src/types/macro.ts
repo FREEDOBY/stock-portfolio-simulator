@@ -132,6 +132,7 @@ export interface SemiconductorData {
     mem_avg: number | null;
     logic_avg: number | null;
     sox_mom: number | null;
+    mem_drawdown?: number | null;
   };
 }
 

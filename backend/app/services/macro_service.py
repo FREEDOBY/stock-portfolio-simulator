@@ -891,16 +891,39 @@ class MacroService:
             main_val, main_label = ppi_yoy, "반도체 PPI YoY"
         else:
             main_val, main_label = None, None
+        # 주지표 모멘텀 둔화 (2차 미분): MoM 상승률이 2개월 연속 둔화 + 최근 MoM이 직전의 절반 이하
+        # 사이클 고점은 YoY가 꺾이기(1차 부호) 한참 전에 상승 '속도'부터 줄어든다
+        mom_decel = False
+        if ecos.get("available"):
+            ser = ecos.get("series") or []
+            if len(ser) >= 4 and all(p["value"] for p in ser[-4:]):
+                v = [p["value"] for p in ser[-4:]]
+                moms = [(v[i + 1] / v[i] - 1) * 100 for i in range(3)]
+                mom_decel = moms[2] < moms[1] < moms[0] and moms[1] > 0 and moms[2] <= moms[1] * 0.5
+
+        # HBM: 신선한 실측 하락 5점 · 스테일(6~12개월)이라도 마지막 실측이 하락이면 2점 소프트 반영
+        def _hbm_pts() -> tuple[int, str]:
+            if hbm_dir == "falling":
+                return 5, "↓"
+            for src in (hbm3e_spot, hbm3e_contract):
+                if src.get("last_direction") == "falling" and (src.get("age_months") or 99) <= 12:
+                    return 2, "↓(구)"
+            return 0, _arrow(hbm_dir)
+
         if main_val is not None or spot_dir is not None or hbm_dir is not None:
             pts = 0
             if main_val is not None and main_val < 0:
                 pts += 20
-            if hbm_dir == "falling":
-                pts += 5
+            elif mom_decel:
+                pts += 10
+            hbm_p, hbm_disp = _hbm_pts()
+            pts += hbm_p
             if spot_dir == "falling":
                 pts += 5
-            if pts >= 20:
+            if main_val is not None and main_val < 0:
                 st = "꺾임"
+            elif mom_decel:
+                st = "상승 둔화"
             elif pts >= 5:
                 st = "경계"
             elif main_val is not None and main_val > 10:
@@ -911,7 +934,8 @@ class MacroService:
             leading.append({
                 "key": "dram", "label": "메모리 가격", "status": st,
                 "value": f"{main_label} {main_val:+.0f}%" if main_val is not None else "N/A",
-                "detail": f"HBM3E {_arrow(hbm_dir)} · DRAM 스팟 {_arrow(spot_dir)}",
+                "detail": f"HBM3E {hbm_disp} · DRAM 스팟 {_arrow(spot_dir)}"
+                          + (" · MoM 급감속" if mom_decel else ""),
             })
 
         # ══ 동행·조기확인 (사이클 활동 실측 — 빠른 발표로 전조를 확정) ══
@@ -1022,7 +1046,15 @@ class MacroService:
         score = min(100, lead_score + coin_score + conf_score)
 
         # ── 국면 판정 ──
-        if mem_3m is not None and mem_3m < -8:
+        # 하강 전환: 3M 수익률(-8%) 또는 26주 고점 대비 드로다운(-15%).
+        # 파라볼릭 직후엔 3M이 랠리에 지배돼 폭락을 못 잡으므로 드로다운이 필수
+        mem_dd = None
+        if mem is not None and len(mem) >= 10:
+            win = mem.iloc[-126:] if len(mem) >= 126 else mem
+            peak26 = float(win.max())
+            if peak26:
+                mem_dd = round((float(mem.iloc[-1]) / peak26 - 1) * 100, 1)
+        if (mem_3m is not None and mem_3m < -8) or (mem_dd is not None and mem_dd <= -15):
             phase = "DOWNTURN"
         elif score >= 60:
             phase = "TOP_WARNING"
@@ -1042,7 +1074,7 @@ class MacroService:
                                "action": "비중축소 검토", "color": "#f97316"},
             "TOP_WARNING":    {"name": "고점 경고", "desc": "캐펙스 증가율 둔화 + D램 꺾임 + 주가 롤오버 동조. 선행 고점 신호.",
                                "action": "차익실현/헤지", "color": "#ef4444"},
-            "DOWNTURN":       {"name": "하강", "desc": "메모리 이미 3개월 하락. 사이클 꺾임 확인.",
+            "DOWNTURN":       {"name": "하강", "desc": "메모리 주가 고점 대비 급락 또는 3개월 하락. 사이클 꺾임 확인.",
                                "action": "현금/관망", "color": "#a78bfa"},
         }
         info = phase_info[phase]
@@ -1167,6 +1199,7 @@ class MacroService:
             "proxy": {
                 "mem_avg": mem_3m, "logic_avg": logic_3m,
                 "mem_vs_logic": spread_now, "sox_mom": sox_mom,
+                "mem_drawdown": mem_dd,
             },
         }
 

@@ -75,19 +75,22 @@ class SiliconAnalystsFetcher:
         pts.sort(key=lambda x: x["period"] or 0)
         latest = pts[-1]["value"] if pts else None
 
-        # 방향은 실측(비전망) 포인트 2개 이상 + 최신 실측이 6개월 이내일 때만
+        # 방향은 실측(비전망) 포인트 2개 이상 + 최신 실측이 6개월 이내일 때만.
+        # 스테일이어도 마지막 실측 방향·경과월은 별도 제공 (호출부에서 소프트 반영용)
         actual = [p for p in pts if not p["proj"]]
         prev = actual[-2]["value"] if len(actual) >= 2 else None
-        direction = None
+        direction, last_direction, age_months = None, None, None
         if len(actual) >= 2:
+            a, b = actual[-2]["value"], actual[-1]["value"]
+            last_direction = "rising" if b > a else "falling" if b < a else "flat"
             ym = _period_to_ym(actual[-1]["period"])
             if ym:
                 now = datetime.now()
                 age_months = (now.year - ym[0]) * 12 + (now.month - ym[1])
                 if age_months <= _STALE_MONTHS:
-                    a, b = actual[-2]["value"], actual[-1]["value"]
-                    direction = "rising" if b > a else "falling" if b < a else "flat"
-        return {"latest": latest, "prev": prev, "direction": direction, "points": pts}
+                    direction = last_direction
+        return {"latest": latest, "prev": prev, "direction": direction,
+                "last_direction": last_direction, "age_months": age_months, "points": pts}
 
 
 silicon_analysts_fetcher = SiliconAnalystsFetcher()

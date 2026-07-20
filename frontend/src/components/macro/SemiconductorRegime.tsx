@@ -16,7 +16,7 @@ interface Props {
 
 const STATUS_COLOR: Record<string, string> = {
   감소: '#ef4444', 꺾임: '#ef4444', 극단: '#ef4444', 과매수: '#ef4444', 롤오버: '#ef4444',
-  '증가율 둔화': '#f97316', 감속: '#f97316',
+  '증가율 둔화': '#f97316', '상승 둔화': '#f97316', 감속: '#f97316',
   과열: '#f59e0b', 경계: '#f59e0b', 정점: '#f59e0b', 상승: '#f59e0b',
   정상: '#10b981', 가속: '#10b981', 중립: '#64748b', 보합: '#64748b',
 };
@@ -323,6 +323,11 @@ export function SemiconductorRegime({ data }: Props) {
           {' · '}로직 <span className="text-slate-400">{fmtPct(proxy.logic_avg)}</span>
           {' · '}격차 <span style={{ color: (proxy.mem_vs_logic ?? 0) < 0 ? '#ef4444' : '#10b981' }}>{fmtPct(proxy.mem_vs_logic)}</span>
           {' · '}SOX <span className="text-slate-400">{fmtPct(proxy.sox_mom)}</span>
+          {proxy.mem_drawdown != null && (
+            <>
+              {' · '}고점대비 <span style={{ color: proxy.mem_drawdown <= -15 ? '#ef4444' : '#f59e0b' }}>{fmtPct(proxy.mem_drawdown)}</span>
+            </>
+          )}
         </div>
       </div>
     </div>
