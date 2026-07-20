@@ -22,6 +22,7 @@ from .tsmc_revenue_fetcher import tsmc_revenue_fetcher
 from .trendforce_spot_fetcher import trendforce_spot_fetcher
 from .memory_capex_fetcher import memory_capex_fetcher
 from .regime_history import append_daily as append_regime_history
+from .fed_projection_fetcher import fed_projection_fetcher
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +178,14 @@ class MacroService:
                 result["NASDAQ"] = {"series_id": "NASDAQ", "name": "NASDAQ", "data": [
                     {"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1)} for idx, v in nqm.items()
                 ], "status": "live"}
+            # Fed 점도표 요약 + 현재 기준금리·2년물(시장기대) 비교
+            dot = fed_projection_fetcher.get_dot_plot()
+            if dot.get("available"):
+                ff = self._series_to_pd(series_data.get("FEDFUNDS"))
+                d2 = self._series_to_pd(series_data.get("DGS2"))
+                dot["current_rate"] = round(float(ff.iloc[-1]), 2) if ff is not None and len(ff) else None
+                dot["market_2y"] = round(float(d2.iloc[-1]), 2) if d2 is not None and len(d2) else None
+            result["FED_DOTS"] = dot
 
         # 캐시 저장
         self._category_cache[category] = result

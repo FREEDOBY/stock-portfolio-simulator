@@ -78,6 +78,44 @@ export function LiquidityTab({ data, crisisOverlays = [] }: Props) {
           />
         </TabChartSection>
 
+      {/* Fed 점도표 요약 (연준 계획) vs 현재·시장기대 */}
+      {(() => {
+        const dot = data['FED_DOTS'] as unknown as {
+          available?: boolean;
+          dots?: Array<{ year: string; median: number; range_low: number; range_high: number; ct_low: number; ct_high: number }>;
+          longer_run?: number | null;
+          current_rate?: number | null;
+          market_2y?: number | null;
+        } | undefined;
+        if (!dot?.available || !dot.dots?.length) return null;
+        const rows = dot.dots.map((d) => ({ date: d.year, ...d }));
+        const refs = [];
+        if (dot.current_rate != null) refs.push({ y: dot.current_rate, color: '#06b6d4', label: `현재 ${dot.current_rate}%` });
+        if (dot.market_2y != null) refs.push({ y: dot.market_2y, color: '#f59e0b', label: `시장 2Y ${dot.market_2y}%` });
+        if (dot.longer_run != null) refs.push({ y: dot.longer_run, color: '#475569', label: `장기중립 ${dot.longer_run}%` });
+        return (
+          <TabChartSection
+            title="Fed 점도표 (SEP) · 연준 금리 계획 vs 시장 기대"
+            description={"FOMC 위원들의 기준금리 전망 요약(분기 갱신, FRED).\n• 중앙값(굵은 선): 연준의 기본 시나리오 경로\n• 범위/중심경향(점선): 위원 간 의견 분산\n• 현재(시안): 실제 기준금리 위치\n• 시장 2Y(주황): 2년물이 내재한 시장 기대\n연준 중앙값 > 현재 = 추가 인하 거의 없음(매파).\n중앙값과 시장 2Y가 갈리면 정책 서프라이즈 리스크.\n※ 개별 점은 무료 API가 없어 통계 요약으로 재구성"}
+          >
+            <MacroLineChart
+              data={rows}
+              series={[
+                { dataKey: 'range_high', color: '#64748b', name: '범위 상', strokeDasharray: '2 3' },
+                { dataKey: 'ct_high', color: '#94a3b8', name: '중심경향 상', strokeDasharray: '4 3' },
+                { dataKey: 'median', color: '#ec4899', name: '중앙값' },
+                { dataKey: 'ct_low', color: '#94a3b8', name: '중심경향 하', strokeDasharray: '4 3' },
+                { dataKey: 'range_low', color: '#64748b', name: '범위 하', strokeDasharray: '2 3' },
+              ]}
+              height={280}
+              yAxisFormatter={(v) => `${v.toFixed(1)}%`}
+              yDomain={['auto', 'auto']}
+              referenceLines={refs}
+            />
+          </TabChartSection>
+        );
+      })()}
+
       {/* M2 + YoY% */}
       <TabChartSection
         title="M2 Money Supply + YoY%"
