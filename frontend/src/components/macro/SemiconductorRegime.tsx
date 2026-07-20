@@ -41,6 +41,21 @@ function SignalCard({ s, big }: { s: LeadingSignal; big?: boolean }) {
   );
 }
 
+/** 차트 제목 + 호버 설명 툴팁 (ⓘ) */
+function ChartTitle({ title, info }: { title: string; info: string }) {
+  return (
+    <div className="relative group flex items-center gap-1.5 mb-1 w-fit cursor-help">
+      <span className="text-xs font-mono text-slate-500">{title}</span>
+      <span className="text-[10px] font-mono text-slate-600 border border-slate-700 rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none shrink-0 group-hover:text-cyan-400 group-hover:border-cyan-500/50 transition-colors">
+        i
+      </span>
+      <span className="absolute left-0 top-full mt-1 z-20 hidden group-hover:block w-[28rem] max-w-[80vw] bg-[#1a1f2e] border border-slate-600/50 rounded-md p-3 text-xs font-mono text-slate-300 leading-relaxed shadow-xl">
+        {info}
+      </span>
+    </div>
+  );
+}
+
 export function SemiconductorRegime({ data }: Props) {
   const { proxy, capex, dram_ref } = data;
   const score = data.top_risk_score;
@@ -129,7 +144,10 @@ export function SemiconductorRegime({ data }: Props) {
         {/* 메모리 vs 로직 주가 (정규화 지수) */}
         {data.mem_logic_series && data.mem_logic_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-            <div className="text-xs font-mono text-slate-500 mb-1">메모리 vs 로직 주가 (시작=100 정규화, 2년)</div>
+            <ChartTitle
+              title="메모리 vs 로직 주가 (시작=100 정규화, 2년)"
+              info="메모리 3사(마이크론·SK하이닉스·삼성전자)와 로직 2사(엔비디아·브로드컴) 주가를 각각 바스켓 평균한 뒤 2년 전=100으로 정규화한 상대 성과 비교입니다. 메모리는 사이클 후반에 로직을 가파르게 아웃퍼폼하는 경향이 있어, 메모리 라인이 수직으로 벌어지면 과열·말기 신호, 벌어진 격차가 꺾이면(롤오버) 고점 확인 신호입니다. 아래 확인 블록의 과열도·상대강도·모멘텀·RSI가 이 데이터로 계산됩니다."
+            />
             <MacroLineChart
               data={data.mem_logic_series}
               series={[
@@ -145,7 +163,10 @@ export function SemiconductorRegime({ data }: Props) {
         {/* 빅테크 캐펙스 분기 추이 */}
         {data.capex_series && data.capex_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-            <div className="text-xs font-mono text-slate-500 mb-1">빅테크 캐펙스 분기 ($B · QoQ %)</div>
+            <ChartTitle
+              title="빅테크 캐펙스 분기 ($B · QoQ %)"
+              info="마이크로소프트·알파벳·메타·아마존의 분기 설비투자 합계(실적 발표 실측)입니다. AI 데이터센터 수요의 최상류 선행지표 — 금액(초록 막대)보다 QoQ 증가율(주황 라인)이 핵심으로, 증가율이 0%를 향해 둔화되면 선행 신호 '증가율 둔화'(20점), 마이너스면 '감소'(30점)가 점등됩니다."
+            />
             <MacroLineChart
               data={data.capex_series}
               series={[
@@ -163,7 +184,10 @@ export function SemiconductorRegime({ data }: Props) {
         {/* D램 DDR4 가격 추이 (컨트랙트 → 스팟) */}
         {data.ddr4_series && data.ddr4_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-            <div className="text-xs font-mono text-slate-500 mb-1">D램 DDR4 8Gb 가격 ($ · 컨트랙트→스팟 · 전기 대비 %)</div>
+            <ChartTitle
+              title="D램 DDR4 8Gb 가격 ($ · 컨트랙트→스팟 · 전기 대비 %)"
+              info="SiliconAnalysts의 분기 추정치로, 레거시 D램 가격의 장기 레벨 참고용입니다. 데이터가 희소하고(포인트 수 개) 컨트랙트→스팟 접합 지점은 기준이 달라 변화율(주황 막대)을 계산하지 않습니다. 스팟 '방향' 신호로는 사용하지 않으며, 신호는 TrendForce 일간 실측이 담당합니다."
+            />
             <MacroLineChart
               data={data.ddr4_series}
               series={[
@@ -181,7 +205,10 @@ export function SemiconductorRegime({ data }: Props) {
         {/* IC 수출물가지수 (ECOS · D램 컨트랙트 프록시) */}
         {data.ecos_series && data.ecos_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-            <div className="text-xs font-mono text-slate-500 mb-1">집적회로 수출물가지수 (달러 · 2020=100 · 한국은행)</div>
+            <ChartTitle
+              title="집적회로 수출물가지수 (달러 · 2020=100 · 한국은행)"
+              info="한국은행 ECOS의 집적회로 수출물가지수(달러 기준, 월간)입니다. 한국 IC 수출은 D램·낸드가 지배하므로 D램 컨트랙트 가격의 공식 통계 프록시로 쓰입니다. 메모리 가격 신호의 주지표 — 이 지수의 YoY가 마이너스로 꺾이면 '꺾임'(20점)이 점등됩니다. 2022~23 메모리 겨울과 2025~ 슈퍼사이클이 그대로 보입니다."
+            />
             <MacroLineChart
               data={data.ecos_series}
               series={[{ dataKey: 'value', color: '#a78bfa', name: 'IC 수출물가', type: 'area' }]}
@@ -195,7 +222,10 @@ export function SemiconductorRegime({ data }: Props) {
         {/* TSMC 월매출 (AI 생산 최상류) */}
         {data.tsmc_series && data.tsmc_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-            <div className="text-xs font-mono text-slate-500 mb-1">TSMC 월매출 (NT$B · YoY %)</div>
+            <ChartTitle
+              title="TSMC 월매출 (NT$B · YoY %)"
+              info="SEC 6-K 공시로 매월 10일경 발표되는 TSMC 월매출입니다. AI 칩 생산 최상류의 월간 실측(동행·조기확인) — 매출 자체보다 YoY 증가율(주황 라인)의 방향이 핵심으로, 증가율이 직전 월 대비 5%p 이상 둔화하면 5점, 마이너스 전환 시 10점이 점등됩니다. 분기 실적 발표보다 1~2개월 빠른 확정 신호입니다."
+            />
             <MacroLineChart
               data={data.tsmc_series}
               series={[
@@ -213,9 +243,10 @@ export function SemiconductorRegime({ data }: Props) {
         {/* DRAM 스팟 일간 (TrendForce · 로컬 축적) */}
         {data.tf_spot_series && data.tf_spot_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-            <div className="text-xs font-mono text-slate-500 mb-1">
-              DRAM 스팟 일간 ($ · TrendForce · {data.tf_spot_series.length}일 축적)
-            </div>
+            <ChartTitle
+              title={`DRAM 스팟 일간 ($ · TrendForce · ${data.tf_spot_series.length}일 축적)`}
+              info="TrendForce 스팟 테이블에서 매일 수집하는 주력 칩(DDR4 8Gb/16Gb·DDR5 16Gb) 세션 평균가 실측입니다. 스팟은 컨트랙트에 선행하는 가장 민감한 메모리 가격으로, 3개 칩 합성 일간 변동률이 메모리 가격 신호의 'DRAM 스팟' 방향으로 반영됩니다. 소스가 당일 값만 제공해 로컬에서 수집한 날만 축적됩니다(빠진 날은 공백)."
+            />
             <MacroLineChart
               data={data.tf_spot_series}
               series={[
@@ -233,7 +264,10 @@ export function SemiconductorRegime({ data }: Props) {
         {/* HBM3E 가격 (AI 프리미엄 메모리) */}
         {data.hbm3e_series && data.hbm3e_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-            <div className="text-xs font-mono text-slate-500 mb-1">HBM3E 가격 ($/GB · 분기 추정)</div>
+            <ChartTitle
+              title="HBM3E 가격 ($/GB · 분기 추정)"
+              info="AI 가속기용 프리미엄 메모리 HBM3E의 GB당 가격입니다(SiliconAnalysts 반기 추정). HBM4 전환기의 가격 정상화(하락) 추세를 참고하는 용도로, 컨트랙트는 연 단위 선계약이라 미래 수급 협상 결과를 반영합니다. 최신 실측이 6개월 이상 오래되면 방향 신호에서 자동 제외됩니다(스테일 가드)."
+            />
             <MacroLineChart
               data={data.hbm3e_series}
               series={[
@@ -250,7 +284,10 @@ export function SemiconductorRegime({ data }: Props) {
         {/* 한국 반도체 수출 추이 (월별) */}
         {data.export_series && data.export_series.length > 0 && (
           <div className="bg-[#0a0e17] rounded-lg p-3 border border-slate-700/30">
-            <div className="text-xs font-mono text-slate-500 mb-1">한국 반도체 수출 (월별, 억$ · HS 8542)</div>
+            <ChartTitle
+              title="한국 반도체 수출 (월별, 억$ · HS 8542)"
+              info="관세청 무역통계의 월간 반도체(HS 8542) 수출액입니다. 익월 1일에 나오는 세계에서 가장 빠른 반도체 활동 실측(동행·조기확인)으로, 글로벌 반도체 경기의 카나리아 역할을 합니다. YoY 마이너스면 '감소'(10점), +10% 미만이면 '둔화'(5점)가 점등됩니다."
+            />
             <MacroLineChart
               data={data.export_series}
               series={[{ dataKey: 'value', color: '#22d3ee', name: '수출 억$', type: 'area' }]}
