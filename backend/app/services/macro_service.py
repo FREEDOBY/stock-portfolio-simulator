@@ -1520,6 +1520,35 @@ class MacroService:
                     for idx, r in fxdf.iterrows()
                 ]
 
+        # 환율 변동성 급등 구간 — 20일 롤링 변동성이 자기 이력 (평균+1σ) 초과 시 음영
+        fx_vol_overlays = []
+        if fx is not None and len(fx) >= 60:
+            ret = fx.pct_change()
+            vol = ret.rolling(20).std() * (252 ** 0.5) * 100  # 연율화 %
+            thr = float(vol.mean() + vol.std())
+            hot = vol > thr
+            start = None
+            prev_idx = None
+            for idx, is_hot in hot.items():
+                if bool(is_hot) and start is None:
+                    start = idx
+                elif not bool(is_hot) and start is not None:
+                    if (prev_idx - start).days >= 10:  # 10일 이상 지속 구간만
+                        fx_vol_overlays.append({
+                            "start": start.strftime("%Y-%m-%d"),
+                            "end": prev_idx.strftime("%Y-%m-%d"),
+                            "label": "변동성 급등", "type": "volatility",
+                        })
+                    start = None
+                if bool(is_hot):
+                    prev_idx = idx
+            if start is not None and prev_idx is not None and (prev_idx - start).days >= 10:
+                fx_vol_overlays.append({
+                    "start": start.strftime("%Y-%m-%d"),
+                    "end": prev_idx.strftime("%Y-%m-%d"),
+                    "label": "변동성 급등", "type": "volatility",
+                })
+
         # WTI 유가 (주봉 근사 + YoY) — 공급쇼크 모니터
         wti_series = []
         wti = self._points_to_pd(raw.wti)
@@ -1583,6 +1612,7 @@ class MacroService:
             "investor_flow": investor_flow,
             "fx_series": fx_series,
             "fx_peakout": fx_peakout,
+            "fx_vol_overlays": fx_vol_overlays,
             "wti_series": wti_series,
             "verdict": verdict,
             "verdict_color": vcolor,

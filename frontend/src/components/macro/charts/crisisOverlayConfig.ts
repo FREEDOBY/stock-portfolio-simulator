@@ -7,7 +7,7 @@ export interface CrisisOverlay {
   start: string;   // YYYY-MM-DD
   end: string;
   label: string;
-  type: 'recession' | 'correction';
+  type: 'recession' | 'correction' | 'volatility';
 }
 
 export interface SignalMarker {
@@ -49,6 +49,7 @@ export function filterOverlaysByPeriod(
 export const OVERLAY_COLORS = {
   recession: { fill: '#64748b', opacity: 0.12, stroke: '#64748b' },
   correction: { fill: '#ef4444', opacity: 0.08, stroke: '#ef4444' },
+  volatility: { fill: '#f59e0b', opacity: 0.12, stroke: '#f59e0b' },
 };
 
 /** 시그널 마커 색상 */

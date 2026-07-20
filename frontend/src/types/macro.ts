@@ -214,6 +214,7 @@ export interface KospiBottomData {
     high: number | null;
     now: number | null;
   };
+  fx_vol_overlays?: Array<{ start: string; end: string; label: string; type: 'volatility' }>;
   wti_series?: Array<{ date: string; value: number; yoy: number | null }>;
   verdict?: string;
   verdict_color?: string;

@@ -363,6 +363,7 @@ export function KospiBottomPage() {
             rightYAxisFormatter={(v) => `${v.toFixed(0)}원`}
             rightYDomain={['auto', 'auto']}
             referenceLines={[{ y: 1400, color: '#ef4444', label: '1,400', yAxisId: 'right' }]}
+            crisisOverlays={data.fx_vol_overlays}
             brush
           />
         </div>
