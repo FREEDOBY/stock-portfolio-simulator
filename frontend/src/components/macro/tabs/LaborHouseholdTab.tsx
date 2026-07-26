@@ -56,7 +56,7 @@ export function LaborHouseholdTab({ data, crisisOverlays = [] }: Props) {
           data={toChartData('SAHMREALTIME')}
           series={[{ dataKey: 'SAHMREALTIME', color: '#ef4444', name: 'Sahm Rule', type: 'area' }]}
           referenceLines={[{ y: 0.5, color: '#ef4444', label: '0.5 (Trigger)' }]}
-          yDomain={[-0.5, 1.5]}
+          yDomain={[-0.5, 2]}
         />
       </TabChartSection>
 

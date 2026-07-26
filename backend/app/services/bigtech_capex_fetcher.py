@@ -17,11 +17,13 @@ class BigtechCapexFetcher:
 
     def get_capex(self) -> dict:
         companies = []
-        quarters: dict[str, float] = {}   # 분기(str) → 합계
+        quarters: dict[str, dict[str, float]] = {}   # 분기(str) → {티커: 값}
+        fetched: list[str] = []                      # 데이터가 있는 티커
         for name, tk in _TICKERS:
             series = self._ticker_capex(tk)
             if not series:
                 continue
+            fetched.append(tk)
             latest = series[0]["value"]
             prev = series[1]["value"] if len(series) > 1 else None
             companies.append({
@@ -30,11 +32,19 @@ class BigtechCapexFetcher:
                 "prev": round(prev / 1e9, 1) if prev is not None else None,
             })
             for pt in series[:6]:
-                quarters[pt["date"]] = quarters.get(pt["date"], 0.0) + pt["value"]
+                quarters.setdefault(pt["date"], {})[tk] = pt["value"]
 
-        # 분기 합계 시계열 (최신순)
+        # 분기 합계 시계열 (최신순) — 회사별 내역과 미반영 회사 포함
         q_sorted = sorted(quarters.items(), key=lambda x: x[0], reverse=True)
-        total_series = [{"date": d, "value": round(v / 1e9, 1)} for d, v in q_sorted]
+        total_series = [
+            {
+                "date": d,
+                "value": round(sum(comp.values()) / 1e9, 1),
+                "breakdown": {tk: round(v / 1e9, 1) for tk, v in comp.items()},
+                "missing": [tk for tk in fetched if tk not in comp],
+            }
+            for d, comp in q_sorted
+        ]
 
         growth_qoq = None
         accelerating = None

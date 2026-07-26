@@ -42,11 +42,13 @@ class MemoryCapexFetcher:
         if not per:
             return {"available": False}
 
-        # 3사 모두 보고된 분기 = 표시용 합계 시계열
+        # 3사 모두 보고된 분기 = 표시용 합계 시계열 (회사별 내역 포함)
+        _LABELS = {"samsung": "삼성전자", "sk_hynix": "SK하이닉스", "micron": "마이크론"}
         common = sorted(set.intersection(*(set(m) for m in per.values())), reverse=True)
         total_series = [
             {"date": f"{qk[0]:04d}-{qk[1] * 3:02d}",
-             "value": round(sum(m[qk] for m in per.values()), 1)}
+             "value": round(sum(m[qk] for m in per.values()), 1),
+             "breakdown": {_LABELS.get(name, name): round(m[qk], 1) for name, m in per.items()}}
             for qk in common
         ]
 

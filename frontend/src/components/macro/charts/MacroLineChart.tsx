@@ -44,6 +44,73 @@ interface Props {
   brushRange?: [number, number] | null;
 }
 
+/** 커스텀 툴팁 — 포인트에 breakdown(회사별 내역)이 있으면 함께 표시 */
+interface TooltipEntry {
+  name?: string;
+  value?: number | string;
+  color?: string;
+  dataKey?: string | number;
+  payload?: Record<string, unknown>;
+}
+
+function ChartTooltip({
+  active, payload, label, leftFormatter, rightFormatter, rightKeys,
+}: {
+  active?: boolean;
+  payload?: TooltipEntry[];
+  label?: string;
+  leftFormatter?: (v: number) => string;
+  rightFormatter?: (v: number) => string;
+  rightKeys: Set<string>;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const fmt = (key: string, v: number | string | undefined): string => {
+    if (typeof v !== 'number') return String(v ?? '');
+    const f = rightKeys.has(key) ? rightFormatter : leftFormatter;
+    return f ? f(v) : String(v);
+  };
+
+  const entries = payload.filter((p) => !String(p.dataKey).startsWith('_'));
+  const row = payload[0]?.payload as Record<string, unknown> | undefined;
+  const breakdown = row?.breakdown as Record<string, number> | undefined;
+  const missing = row?.missing as string[] | undefined;
+
+  return (
+    <div
+      style={{
+        backgroundColor: '#1a1f2e',
+        border: '1px solid rgba(100,116,139,0.3)',
+        borderRadius: '4px',
+        fontFamily: 'JetBrains Mono, monospace',
+        fontSize: '13px',
+        color: '#e2e8f0',
+        padding: '8px 10px',
+      }}
+    >
+      <div style={{ marginBottom: 4 }}>{label}</div>
+      {entries.map((p, i) => (
+        <div key={i} style={{ color: p.color }}>
+          {p.name} : {fmt(String(p.dataKey), p.value)}
+        </div>
+      ))}
+      {breakdown && (
+        <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(100,116,139,0.3)', fontSize: '12px' }}>
+          {Object.entries(breakdown).map(([name, v]) => (
+            <div key={name} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ color: '#94a3b8' }}>{name}</span>
+              <span>{leftFormatter ? leftFormatter(v) : v}</span>
+            </div>
+          ))}
+          {missing && missing.length > 0 && (
+            <div style={{ color: '#64748b', marginTop: 2 }}>미발표: {missing.join(', ')}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** 시그널 마커용 커스텀 도트 */
 function SignalDot(props: Record<string, unknown>) {
   const { cx, cy, payload } = props as { cx: number; cy: number; payload: Record<string, unknown> };
@@ -171,14 +238,13 @@ export function MacroLineChart({
           )}
 
           <Tooltip
-            contentStyle={{
-              backgroundColor: '#1a1f2e',
-              border: '1px solid rgba(100,116,139,0.3)',
-              borderRadius: '4px',
-              fontFamily: 'JetBrains Mono, monospace',
-              fontSize: '13px',
-              color: '#e2e8f0',
-            }}
+            content={
+              <ChartTooltip
+                leftFormatter={yAxisFormatter}
+                rightFormatter={rightYAxisFormatter}
+                rightKeys={new Set(series.filter((s) => s.yAxisId === 'right').map((s) => s.dataKey))}
+              />
+            }
           />
           <Legend wrapperStyle={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }} />
 
