@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { fetchDashboard } from '../../api/macro';
 import { VerdictBanner } from './VerdictBanner';
 import { RecessionWarningBanner } from './RecessionWarningBanner';
+import { BearRiskBanner } from './BearRiskBanner';
 import { KostolanyEgg } from './charts/KostolanyEgg';
 import { CategoryCard } from './CategoryCard';
 import { SignalTable } from './SignalTable';
@@ -82,6 +83,14 @@ export function MacroDashboard({ onNavigateToDetail }: Props) {
           <RecessionWarningBanner warning={data.recession_warning} />
         )}
       </div>
+
+      {/* 베어장 위험 4축 */}
+      {data.bear_market_risk?.available && (
+        <BearRiskBanner
+          data={data.bear_market_risk}
+          onNavigate={() => onNavigateToDetail?.('bear-risk')}
+        />
+      )}
 
       {/* 코스톨라니 달걀모델 */}
       {data.kostolany && <KostolanyEgg data={data.kostolany} />}

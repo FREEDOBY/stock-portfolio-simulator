@@ -243,12 +243,96 @@ export interface NasdaqBottomData {
   verdict_color?: string;
 }
 
+// ── 베어장 위험 스코어 (유형별 4축) ──
+
+export interface BearAxisSignal {
+  key: string;
+  label: string;
+  status: string;          // 점등 | 부분 | 정상 | 데이터 없음
+  value: string;           // "30/30" 형태
+  detail: string;
+  points: number | null;
+  max_points: number;
+}
+
+export interface BearAxis {
+  key: 'tightening' | 'bubble' | 'credit' | 'shock';
+  label: string;
+  desc: string;
+  score: number | null;
+  level: 'normal' | 'caution' | 'warning' | 'danger';
+  color: string;
+  coverage_from: string | null;
+  signals: BearAxisSignal[];
+  state_label?: string;    // shock 축 전용: 정상 | 주의 | 이탈
+}
+
+export type BearStage = 'normal' | 'watch' | 'reduce' | 'defense';
+
+export interface BearStageInfo {
+  label: string;
+  action: string;
+  color: string;
+  desc: string;
+}
+
+export interface BearHistoryPoint extends Record<string, unknown> {
+  date: string;            // YYYY-MM
+  tightening: number | null;
+  bubble: number | null;
+  credit: number | null;
+  shock: number | null;
+  stage?: BearStage;
+}
+
+export interface BearEpisodeValidation {
+  key: string;
+  label: string;
+  peak: string;
+  expected: string[];
+  axes: Record<string, { max_score: number | null; warned: boolean }>;
+  passed: boolean;
+}
+
+export interface BearReferenceColumn {
+  key: string;
+  label: string;
+  axis: string;
+  axis_label: string;
+}
+
+export interface BearReferenceRow {
+  key: string;
+  label: string;
+  peak: string | null;      // null = 현재 행
+  metrics: Record<string, string | null>;
+}
+
+export interface BearMarketRiskData {
+  available: boolean;
+  axes: BearAxis[];
+  reference?: { columns: BearReferenceColumn[]; rows: BearReferenceRow[] };
+  summary: {
+    worst_axis: string | null;
+    worst_score: number | null;
+    level: 'normal' | 'caution' | 'warning' | 'danger';
+    color: string;
+    headline: string;
+    stage: BearStage;
+    stage_info: BearStageInfo;
+  };
+  history: BearHistoryPoint[];
+  validation: BearEpisodeValidation[];
+  context?: { dot_plot: Record<string, unknown> | null };
+}
+
 export interface DashboardData {
   overall: OverallResult;
   categories: Record<string, CategorySummary>;
   recession_warning?: RecessionWarning;
   kostolany?: KostolanyData;
   semiconductor?: SemiconductorData;
+  bear_market_risk?: BearMarketRiskData;
 }
 
 export const WARNING_LEVEL_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {

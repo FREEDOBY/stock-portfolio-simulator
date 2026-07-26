@@ -127,6 +127,16 @@ async def customs_test():
             "parsed": customs_export_fetcher.get_semiconductor_export()}
 
 
+@router.get("/debug/bear-risk")
+async def debug_bear_risk():
+    """베어장 위험 4축 디버그 - 축 점수 + 역사 검증(validate_episodes) 결과"""
+    try:
+        raw = macro_service.fetcher.fetch_all()
+        return macro_service._evaluate_bear_risk(raw)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Debug failed: {str(e)}")
+
+
 @router.get("/debug/kitchin")
 async def debug_kitchin():
     """키친사이클 디버그 - 각 지표 트렌드 상세"""

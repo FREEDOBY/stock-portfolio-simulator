@@ -9,6 +9,7 @@ import {
   LaborHouseholdPage,
 } from '../components/macro/CategoryPages';
 import { SemiconductorPage } from '../components/macro/SemiconductorPage';
+import { BearRiskPage } from '../components/macro/BearRiskPage';
 import { KospiBottomPage } from '../components/macro/KospiBottomPage';
 import { NasdaqBottomPage } from '../components/macro/NasdaqBottomPage';
 import { CATEGORY_CONFIG } from '../types/macro';
@@ -79,6 +80,14 @@ export const menuItems: MenuItem[] = [
     section: '매크로 상세',
   },
   // ── 사이클 · 저점 ──
+  {
+    id: 'bear-risk',
+    label: 'Bear Market Risk',
+    shortLabel: 'BEAR',
+    icon: 'M13 17h8m0 0V9m0 8l-8-8-4 4-6-6',
+    component: BearRiskPage,
+    section: '사이클 · 저점',
+  },
   {
     id: 'semiconductor',
     label: 'Semiconductor Regime',

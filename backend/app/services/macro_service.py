@@ -23,6 +23,7 @@ from .trendforce_spot_fetcher import trendforce_spot_fetcher
 from .memory_capex_fetcher import memory_capex_fetcher
 from .regime_history import append_daily as append_regime_history
 from .fed_projection_fetcher import fed_projection_fetcher
+from .bear_market_risk import bear_market_risk_engine
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,9 @@ class MacroService:
         # 반도체 레짐 판정기
         semiconductor = self._semiconductor_regime(raw, indicators)
 
+        # 베어장 위험 스코어 (유형별 4축)
+        bear_market_risk = self._evaluate_bear_risk(raw)
+
         result = {
             "overall": {
                 "score": score,
@@ -134,6 +138,7 @@ class MacroService:
             "recession_warning": recession_warning,
             "kostolany": kostolany,
             "semiconductor": semiconductor,
+            "bear_market_risk": bear_market_risk,
         }
 
         # 캐시 저장
@@ -586,6 +591,36 @@ class MacroService:
             warning_indicators["sahm_value"] = float(sahm_data.iloc[-1])
 
         return self.warning_engine.evaluate(warning_indicators)
+
+    def _evaluate_bear_risk(self, raw: MacroRawData) -> Optional[dict]:
+        """베어장 위험 4축 평가 (실패해도 대시보드 전체를 막지 않음)"""
+        try:
+            inputs = {
+                "fedfunds": self._series_to_pd(raw.fred_series.get("FEDFUNDS")),
+                "m2": self._series_to_pd(raw.fred_series.get("M2SL")),
+                "cpi": self._series_to_pd(raw.fred_series.get("CPIAUCSL")),
+                "walcl": self._series_to_pd(raw.fred_series.get("WALCL")),
+                "t10y2y": self._series_to_pd(raw.fred_series.get("T10Y2Y")),
+                # HY(BAMLH0A0HYM2)는 FRED가 최근 3년만 제공 → 30년 소급 가능한 BAA10Y 사용
+                "baa10y": self._series_to_pd(raw.fred_series.get("BAA10Y")),
+                "bank": self._series_to_pd(raw.fred_series.get("DRTSCILM")),
+                "card": self._series_to_pd(raw.fred_series.get("DRCCLACBS")),
+                "ncbcel": self._series_to_pd(raw.fred_series.get("NCBCEL")),
+                "gdp": self._series_to_pd(raw.fred_series.get("GDP")),
+                "vix": self._points_to_pd(raw.vix),
+                "nasdaq_weekly": self._points_to_pd(raw.nasdaq_weekly),
+            }
+            result = bear_market_risk_engine.evaluate(inputs)
+            # 점도표는 시계열 불가 → 점수 미포함, 현재 판정 참고 정보로만 첨부
+            try:
+                result["context"] = {"dot_plot": fed_projection_fetcher.get_dot_plot()}
+            except Exception as e:
+                logger.warning("dot plot fetch failed for bear risk context: %s", e)
+                result["context"] = {"dot_plot": None}
+            return result
+        except Exception as e:
+            logger.warning("bear market risk evaluation failed: %s", e)
+            return None
 
     def _determine_cli_stage(self, cli_value: Optional[float], mom: Optional[float]) -> Optional[str]:
         """CLI 기반 경기 사이클 스테이지 (1차 큰 방향)"""

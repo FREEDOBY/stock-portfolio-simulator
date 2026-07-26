@@ -72,6 +72,7 @@ FRED_SERIES_CONFIG = [
     {"id": "WALCL", "name": "연준 총자산", "months": 360},
     {"id": "RRPONTSYD", "name": "역레포 잔고", "months": 360},
     {"id": "BAMLH0A0HYM2", "name": "하이일드 스프레드", "months": 360},
+    {"id": "BAA10Y", "name": "Baa 회사채 스프레드", "months": 360},
     {"id": "ICSA", "name": "신규 실업수당 청구건수", "months": 360},
     {"id": "CPIAUCSL", "name": "CPI 소비자물가", "months": 360},
     {"id": "PCEPILFE", "name": "Core PCE", "months": 360},
