@@ -20,6 +20,9 @@ npm-debug.log*
 # Frontend build
 frontend/dist/
 
+# 워크플로 도구 상태 파일
+.workflow/
+
 # IDE
 .vscode/
 .idea/
