@@ -5,7 +5,8 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
   baseURL: API_BASE,
-  timeout: 60000, // 매크로 데이터는 시간이 걸릴 수 있음
+  timeout: 120000, // 콜드 캐시 첫 수집(외부 API 병렬 호출)이 느린 날 대비 여유
+
 });
 
 /**

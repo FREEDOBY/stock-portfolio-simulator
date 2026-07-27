@@ -1,11 +1,13 @@
 """매크로 데이터 통합 수집 서비스"""
 import logging
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import pandas as pd
 import yfinance as yf
 
-from .fred_service import FREDService, fred_service
+from .fred_service import FREDService, fred_service, KST, _get_reset_boundary
 from ..models.macro_schemas import (
     MacroRawData,
     SeriesData,
@@ -22,21 +24,42 @@ class MacroDataFetcher:
 
     def __init__(self):
         self.fred: FREDService = fred_service
+        # 원본 데이터 일간 캐시 (KST 06:00 리셋) — dashboard/kospi/nasdaq이 각자
+        # fetch_all을 불러도 하루 1회만 실제 수집하도록 공유
+        self._raw_cache: MacroRawData | None = None
+        self._raw_cached_at: datetime | None = None
+        self._lock = threading.Lock()
 
-    def fetch_all(self) -> MacroRawData:
-        """전체 매크로 데이터 수집"""
+    def fetch_all(self, force: bool = False) -> MacroRawData:
+        """전체 매크로 데이터 수집 (동시 호출은 락으로 직렬화되어 1회만 수집)"""
+        with self._lock:
+            if (
+                not force
+                and self._raw_cache is not None
+                and self._raw_cached_at is not None
+                and self._raw_cached_at >= _get_reset_boundary()
+            ):
+                return self._raw_cache
+
+            raw = self._fetch_all_uncached()
+            self._raw_cache = raw
+            self._raw_cached_at = datetime.now(KST)
+            return raw
+
+    def _fetch_all_uncached(self) -> MacroRawData:
         errors: list[str] = []
 
-        # 1. FRED 시리즈 수집
-        fred_data = self._fetch_all_fred()
+        # FRED와 Yahoo를 동시에 수집 (각자 내부에서도 병렬)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            fred_future = pool.submit(self._fetch_all_fred)
+            yahoo_future = pool.submit(self._fetch_all_yahoo, errors)
+            fred_data = fred_future.result()
+            yahoo_data = yahoo_future.result()
 
         # FRED 에러 수집
         for sid, sd in fred_data.items():
             if sd.status == DataStatus.ERROR and sd.error:
                 errors.append(sd.error)
-
-        # 2. Yahoo Finance 수집
-        yahoo_data = self._fetch_all_yahoo(errors)
 
         return MacroRawData(
             fred_series=fred_data,
@@ -125,11 +148,17 @@ class MacroDataFetcher:
             ("wti", "CL=F", "1d", "5y"),
         ]
 
-        for key, ticker, interval, period in yahoo_configs:
-            df = self._fetch_yahoo_series(ticker, interval=interval, period=period)
-            if df.empty:
-                errors.append(f"Yahoo Finance: no data for {ticker} ({key})")
-            result[key] = self._df_to_points(df)
+        # 동시 5요청 (과도한 병렬은 Yahoo 429 유발)
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            futures = {
+                key: pool.submit(self._fetch_yahoo_series, ticker, interval=interval, period=period)
+                for key, ticker, interval, period in yahoo_configs
+            }
+            for key, ticker, interval, period in yahoo_configs:
+                df = futures[key].result()
+                if df.empty:
+                    errors.append(f"Yahoo Finance: no data for {ticker} ({key})")
+                result[key] = self._df_to_points(df)
 
         return result
 

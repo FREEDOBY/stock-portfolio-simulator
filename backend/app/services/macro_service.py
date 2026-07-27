@@ -212,7 +212,7 @@ class MacroService:
             logger.info("KOSPI bottom cache hit")
             return self._kospi_cache
 
-        raw = self.fetcher.fetch_all()
+        raw = self.fetcher.fetch_all(force=force)
         result = self._compute_kospi_bottom(raw)
         self._kospi_cache = result
         self._kospi_cached_at = datetime.now(KST)
@@ -222,7 +222,7 @@ class MacroService:
         """나스닥 저점 판정 (파라볼릭 되돌림 + 낙폭 밴드 + 역대 약세장, KST 06:00 캐시)"""
         if not force and self._nasdaq_cache is not None and _is_cache_valid(self._nasdaq_cached_at):
             return self._nasdaq_cache
-        raw = self.fetcher.fetch_all()
+        raw = self.fetcher.fetch_all(force=force)
         result = self._compute_nasdaq_bottom(raw)
         self._nasdaq_cache = result
         self._nasdaq_cached_at = datetime.now(KST)

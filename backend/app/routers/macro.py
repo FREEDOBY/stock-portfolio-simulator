@@ -31,8 +31,11 @@ class KospiManualInput(BaseModel):
 
 
 @router.get("/dashboard")
-async def get_dashboard():
-    """매크로 대시보드 - 종합 판정 + 카테고리 요약 + 시그널"""
+def get_dashboard():
+    """매크로 대시보드 - 종합 판정 + 카테고리 요약 + 시그널
+
+    sync def = FastAPI 스레드풀 실행 → 수십 초짜리 외부 수집이 이벤트 루프를 막지 않음
+    """
     try:
         return macro_service.get_dashboard()
     except Exception as e:
@@ -40,7 +43,7 @@ async def get_dashboard():
 
 
 @router.get("/category/{name}")
-async def get_category_detail(name: str):
+def get_category_detail(name: str):
     """카테고리별 상세 데이터"""
     if name not in VALID_CATEGORIES:
         raise HTTPException(status_code=400, detail=f"Invalid category: {name}. Valid: {VALID_CATEGORIES}")
@@ -79,7 +82,7 @@ async def set_dram(input: DramInput):
 
 
 @router.get("/kospi-bottom")
-async def get_kospi_bottom(refresh: bool = False):
+def get_kospi_bottom(refresh: bool = False):
     """코스피 저점 판정 - 파라볼릭 되돌림 + 낙폭 밴드 + 신용/반대매매 (refresh=true 시 즉시 재취득)"""
     try:
         return macro_service.get_kospi_bottom(force=refresh)
@@ -88,7 +91,7 @@ async def get_kospi_bottom(refresh: bool = False):
 
 
 @router.get("/nasdaq-bottom")
-async def get_nasdaq_bottom(refresh: bool = False):
+def get_nasdaq_bottom(refresh: bool = False):
     """나스닥 저점 판정 - 파라볼릭 되돌림 + 낙폭 밴드 + 역대 약세장"""
     try:
         return macro_service.get_nasdaq_bottom(force=refresh)
@@ -128,7 +131,7 @@ async def customs_test():
 
 
 @router.get("/debug/bear-risk")
-async def debug_bear_risk():
+def debug_bear_risk():
     """베어장 위험 4축 디버그 - 축 점수 + 역사 검증(validate_episodes) 결과"""
     try:
         raw = macro_service.fetcher.fetch_all()
@@ -138,7 +141,7 @@ async def debug_bear_risk():
 
 
 @router.get("/debug/kitchin")
-async def debug_kitchin():
+def debug_kitchin():
     """키친사이클 디버그 - 각 지표 트렌드 상세"""
     try:
         return macro_service.debug_kitchin_cycle()

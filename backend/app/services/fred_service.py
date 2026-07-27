@@ -2,6 +2,7 @@
 import logging
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -144,14 +145,15 @@ class FREDService:
         self,
         series_configs: list[dict],
     ) -> dict[str, pd.DataFrame]:
-        """여러 FRED 시리즈를 한 번에 수집"""
-        result = {}
-        for config in series_configs:
-            series_id = config["id"]
-            months = config.get("months", 24)
-            result[series_id] = self.get_series(series_id, months_back=months)
-
-        return result
+        """여러 FRED 시리즈를 병렬 수집 (FRED 한도 120req/min 이내의 동시 8요청)"""
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures = {
+                config["id"]: pool.submit(
+                    self.get_series, config["id"], config.get("months", 24)
+                )
+                for config in series_configs
+            }
+            return {series_id: fut.result() for series_id, fut in futures.items()}
 
 
 # 싱글톤
