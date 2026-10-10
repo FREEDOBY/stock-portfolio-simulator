@@ -9,9 +9,11 @@ import {
   LaborHouseholdPage,
 } from '../components/macro/CategoryPages';
 import { SemiconductorPage } from '../components/macro/SemiconductorPage';
+import { RealEstateDashboard } from '../components/realestate/RealEstateDashboard';
 import { BearRiskPage } from '../components/macro/BearRiskPage';
 import { KospiBottomPage } from '../components/macro/KospiBottomPage';
 import { NasdaqBottomPage } from '../components/macro/NasdaqBottomPage';
+import { ChinaEtfPage } from '../components/macro/ChinaEtfPage';
 import { CATEGORY_CONFIG } from '../types/macro';
 import type { MenuItem } from '../types/navigation';
 
@@ -111,6 +113,23 @@ export const menuItems: MenuItem[] = [
     icon: 'M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6',
     component: NasdaqBottomPage,
     section: '사이클 · 저점',
+  },
+  {
+    id: 'china-etf',
+    label: 'China ETF',
+    shortLabel: 'CHN',
+    icon: 'M3 12h18M3 12c0-4.97 4.03-9 9-9s9 4.03 9 9-4.03 9-9 9-9-4.03-9-9zm9-9c2.5 2.5 3.75 5.63 3.75 9S14.5 18.5 12 21m0-18C9.5 5.5 8.25 8.63 8.25 12S9.5 18.5 12 21',
+    component: ChinaEtfPage,
+    section: '사이클 · 저점',
+  },
+  // ── 부동산 ──
+  {
+    id: 'realestate',
+    label: '부동산 시장분석',
+    shortLabel: 'APT',
+    icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
+    component: RealEstateDashboard,
+    section: '부동산',
   },
   // ── 도구 ──
   {

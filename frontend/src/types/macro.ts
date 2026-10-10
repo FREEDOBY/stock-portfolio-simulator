@@ -243,6 +243,29 @@ export interface NasdaqBottomData {
   verdict_color?: string;
 }
 
+// ── 국내 상장 중국 ETF (파라볼릭 되돌림) ──
+
+export interface ChinaEtfItem {
+  code: string;
+  name: string;
+  index: string;
+  available: boolean;
+  price?: Array<{ date: string; value: number; sma50?: number | null; sma120?: number | null; sma200?: number | null; rsi?: number | null }>;
+  peak?: { date: string; value: number };
+  base?: { date: string; value: number };
+  current?: number;
+  drawdown_pct?: number;
+  retracement?: { peak: number; fib382: number; fib50: number; fib618: number; base: number };
+  retracement_pct?: number | null;
+  verdict?: string;
+  verdict_color?: string;
+}
+
+export interface ChinaEtfData {
+  available: boolean;
+  etfs?: ChinaEtfItem[];
+}
+
 // ── 베어장 위험 스코어 (유형별 4축) ──
 
 export interface BearAxisSignal {

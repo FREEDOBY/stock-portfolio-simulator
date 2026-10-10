@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { DashboardData, KospiBottomData, NasdaqBottomData } from '../types/macro';
+import type { DashboardData, KospiBottomData, NasdaqBottomData, ChinaEtfData } from '../types/macro';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -25,12 +25,14 @@ const cache: {
   signalHistory: CacheEntry<unknown[]> | null;
   kospiBottom: CacheEntry<KospiBottomData> | null;
   nasdaqBottom: CacheEntry<NasdaqBottomData> | null;
+  chinaEtf: CacheEntry<ChinaEtfData> | null;
 } = {
   dashboard: null,
   categories: {},
   signalHistory: null,
   kospiBottom: null,
   nasdaqBottom: null,
+  chinaEtf: null,
 };
 
 function getResetBoundary(): number {
@@ -109,6 +111,15 @@ export const fetchNasdaqBottom = async (): Promise<NasdaqBottomData> => {
   if (isCacheValid(cache.nasdaqBottom)) return cache.nasdaqBottom.data;
   const response = await api.get('/macro/nasdaq-bottom');
   cache.nasdaqBottom = { data: response.data, cachedAt: Date.now() };
+  return response.data;
+};
+
+export const fetchChinaEtf = async (force = false): Promise<ChinaEtfData> => {
+  if (!force && isCacheValid(cache.chinaEtf)) return cache.chinaEtf.data;
+  const response = await api.get('/macro/china-etf', {
+    params: force ? { refresh: true } : undefined,
+  });
+  cache.chinaEtf = { data: response.data, cachedAt: Date.now() };
   return response.data;
 };
 

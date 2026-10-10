@@ -193,8 +193,12 @@ class BearMarketRiskEngine:
 
         # 발표 지연 전파: 시리즈별 끝 시점이 달라 union 인덱스 꼬리가 NaN이 되므로
         # 결합 후에 ffill. 분기 FRED는 '분기 시작월' 라벨(2026-Q1 = 2026-01)이라
-        # 분기 3개월 + 발표 지연 ~3개월 = 최대 7개월 전파 필요
-        for k, lim in (("fedfunds", 2), ("m2", 2), ("cpi", 2),
+        # 분기 3개월 + 발표 지연 ~3개월 = 최대 7개월 전파 필요.
+        # 주간 시리즈(walcl·나스닥 주봉)는 월초 며칠간 당월 바가 아직 없어
+        # 일간 시리즈가 만든 당월 행이 NaN → 1~2개월 전파 없이는 현재 판정이
+        # 매달 초마다 '데이터 없음'으로 떨어진다
+        for k, lim in (("fedfunds", 2), ("m2", 2), ("cpi", 2), ("walcl", 2),
+                       ("nasdaq", 1), ("nq_sma40w", 1), ("nq_sma200w", 1),
                        ("bank", 7), ("ncbcel", 7), ("gdp", 7), ("card_rising", 7)):
             if k in df:
                 df[k] = df[k].ffill(limit=lim)

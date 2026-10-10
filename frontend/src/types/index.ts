@@ -82,10 +82,32 @@ export interface BacktestRequest {
   ma_dca_settings?: MADCASettings;
 }
 
+export interface SimulatorSettings {
+  startDate: string;
+  endDate: string;
+  initialAmount: number;
+  rebalance: string;
+  investmentType: InvestmentType;
+  dcaFrequency: DCAFrequency;
+  dcaAmount: number;
+  maPeriod: number;
+  maMultiplier: number;
+}
+
 export interface SavedPortfolio {
   id: string;
   name: string;
   portfolio: PortfolioItem[];
+  settings?: SimulatorSettings; // 저장 시점의 시뮬레이션 설정 (구버전 저장분에는 없음)
   createdAt: string;
   updatedAt: string;
+}
+
+/** 비교 모드에서 한 포트폴리오의 백테스트 결과 + 표시 색 */
+export interface ComparisonEntry {
+  saved: SavedPortfolio;
+  result: BacktestResult;
+  color: string;
+  /** 이름 중복 시 구분용 표시 이름 */
+  label: string;
 }

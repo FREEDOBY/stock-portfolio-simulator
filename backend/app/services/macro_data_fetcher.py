@@ -162,6 +162,10 @@ class MacroDataFetcher:
 
         return result
 
+    def fetch_daily_max(self, ticker: str) -> list[SeriesDataPoint]:
+        """단일 티커 일봉 전체이력 (중국 ETF 등 개별 종목 페이지용)"""
+        return self._df_to_points(self._fetch_yahoo_series(ticker, interval="1d", period="max"))
+
     def _fetch_yahoo_series(
         self,
         ticker: str,
@@ -204,8 +208,8 @@ class MacroDataFetcher:
             "business_cycle": ["USALOLITOAASTSAM", "IPMAN", "DGORDER", "AMTMNO", "NEWORDER", "PERMIT", "ACDGNO", "ISRATIO", "T10Y2Y", "OPHNFB"],
             "liquidity": ["FEDFUNDS", "DGS10", "DGS2", "M2SL", "WALCL", "RRPONTSYD", "BCNSDODNS", "DRTSCILM"],
             "sentiment": ["BAMLH0A0HYM2", "ICSA", "UMCSENT"],
-            "valuation": ["CPIAUCSL", "PCEPILFE", "NCBCEL", "GDP"],
-            "labor_household": ["UNRATE", "JTSJOL", "TEMPHELPS", "CIVPART", "HDTGPDUSQ163N", "DRCCLACBS", "PSAVERT", "SAHMREALTIME"],
+            "valuation": ["CPIAUCSL", "CPILFESL", "PCEPILFE", "PPIFIS", "PPIFES", "NCBCEL", "GDP"],
+            "labor_household": ["UNRATE", "PAYEMS", "JTSJOL", "TEMPHELPS", "CIVPART", "HDTGPDUSQ163N", "DRCCLACBS", "PSAVERT", "SAHMREALTIME"],
         }
 
         series_ids = category_map.get(category, [])

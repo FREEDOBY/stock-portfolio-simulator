@@ -6,8 +6,17 @@ import { MetricsTable } from './MetricsTable';
 import { PortfolioPieChart } from './PortfolioPieChart';
 import { SavedPortfolioList } from './SavedPortfolioList';
 import { DividendSection } from './DividendSection';
+import { ComparisonPanel } from './ComparisonPanel';
 import { runBacktest } from '../api';
-import type { PortfolioItem, BacktestResult, BenchmarkType } from '../types';
+import { COMPARE_COLORS, exportReport } from '../utils/htmlExport';
+import type {
+  PortfolioItem,
+  BacktestResult,
+  BacktestRequest,
+  BenchmarkType,
+  SavedPortfolio,
+  ComparisonEntry,
+} from '../types';
 
 const STORAGE_KEY = 'portfolio-simulator';
 
@@ -40,6 +49,8 @@ export function PortfolioSimulator() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedBenchmarks, setSelectedBenchmarks] = useState<BenchmarkType[]>(['SPY']);
+  const [comparison, setComparison] = useState<ComparisonEntry[] | null>(null);
+  const [isComparing, setIsComparing] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -64,6 +75,34 @@ export function PortfolioSimulator() {
   const totalWeight = portfolio.reduce((sum, item) => sum + item.weight, 0);
   const canRun = portfolio.length > 0 && totalWeight > 0;
 
+  const buildRequest = (items: PortfolioItem[], s: Settings): BacktestRequest => ({
+    portfolio: items.map((p) => ({
+      symbol: p.symbol,
+      weight: p.weight / 100,
+    })),
+    start_date: s.startDate,
+    end_date: s.endDate,
+    initial_amount: s.initialAmount,
+    rebalance: s.rebalance,
+    investment_type: s.investmentType,
+    dca_settings:
+      s.investmentType === 'dca'
+        ? { frequency: s.dcaFrequency, amount: s.dcaAmount }
+        : undefined,
+    ma_dca_settings:
+      s.investmentType === 'ma_dca'
+        ? {
+            frequency: s.dcaFrequency,
+            amount: s.dcaAmount,
+            ma_period: s.maPeriod,
+            multiplier: s.maMultiplier,
+          }
+        : undefined,
+  });
+
+  const toErrorMessage = (err: unknown) =>
+    err instanceof Error && err.message ? err.message : '백테스트 실행 중 오류가 발생했습니다';
+
   const handleRun = async () => {
     if (!canRun) return;
 
@@ -71,42 +110,99 @@ export function PortfolioSimulator() {
     setError(null);
 
     try {
-      const response = await runBacktest({
-        portfolio: portfolio.map((p) => ({
-          symbol: p.symbol,
-          weight: p.weight / 100,
-        })),
-        start_date: settings.startDate,
-        end_date: settings.endDate,
-        initial_amount: settings.initialAmount,
-        rebalance: settings.rebalance,
-        investment_type: settings.investmentType,
-        dca_settings:
-          settings.investmentType === 'dca'
-            ? { frequency: settings.dcaFrequency, amount: settings.dcaAmount }
-            : undefined,
-        ma_dca_settings:
-          settings.investmentType === 'ma_dca'
-            ? {
-                frequency: settings.dcaFrequency,
-                amount: settings.dcaAmount,
-                ma_period: settings.maPeriod,
-                multiplier: settings.maMultiplier,
-              }
-            : undefined,
-      });
-
+      const response = await runBacktest(buildRequest(portfolio, settings));
       setResult(response);
+      setComparison(null); // 단일 실행 시 비교 뷰 해제
     } catch (err: unknown) {
       console.error('Backtest failed:', err);
-      if (err instanceof Error) {
-        setError(err.message || '백테스트 실행 중 오류가 발생했습니다');
-      } else {
-        setError('백테스트 실행 중 오류가 발생했습니다');
-      }
+      setError(toErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
+  };
+
+  /** 저장된 포트폴리오들을 동시 백테스트해 비교 뷰 표시
+   *
+   * 기간(시작·종료일)은 공정 비교를 위해 현재 설정으로 통일하고,
+   * 매수방식·금액·리밸런싱은 각 저장본의 설정을 따른다 (미저장 구버전은 현재 설정).
+   */
+  const handleCompare = async (selected: SavedPortfolio[]) => {
+    if (selected.length < 2) return;
+    setIsComparing(true);
+    setError(null);
+
+    try {
+      const results = await Promise.all(
+        selected.map((sp) => {
+          const effective: Settings = {
+            ...settings,
+            ...(sp.settings ?? {}),
+            startDate: settings.startDate,
+            endDate: settings.endDate,
+          };
+          return runBacktest(buildRequest(sp.portfolio, effective));
+        }),
+      );
+      const nameCount = new Map<string, number>();
+      setComparison(
+        selected.map((sp, i) => {
+          const n = (nameCount.get(sp.name) ?? 0) + 1;
+          nameCount.set(sp.name, n);
+          return {
+            saved: sp,
+            result: results[i],
+            color: COMPARE_COLORS[i],
+            label: n > 1 ? `${sp.name} (${n})` : sp.name,
+          };
+        }),
+      );
+    } catch (err: unknown) {
+      console.error('Comparison failed:', err);
+      setError(toErrorMessage(err));
+    } finally {
+      setIsComparing(false);
+    }
+  };
+
+  /** 단일 백테스트 결과를 HTML 리포트로 다운로드 */
+  const handleExportSingle = () => {
+    if (!result) return;
+    const last = result.portfolio_values[result.portfolio_values.length - 1]?.value ?? 0;
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    exportReport({
+      title: 'Portfolio Backtest Report',
+      mode: 'currency',
+      series: [
+        {
+          name: 'PORTFOLIO',
+          color: COMPARE_COLORS[0],
+          points: result.portfolio_values.map((p) => ({ date: p.date, value: p.value })),
+        },
+        ...selectedBenchmarks.map((b, i) => ({
+          name: b,
+          color: COMPARE_COLORS[i + 1],
+          points: result.benchmarks[b].map((p) => ({ date: p.date, value: p.value })),
+        })),
+      ],
+      metricsColumns: [
+        {
+          name: 'PORTFOLIO',
+          color: COMPARE_COLORS[0],
+          metrics: result.metrics,
+          invested: result.total_invested,
+          finalValue: last,
+        },
+        ...selectedBenchmarks.map((b, i) => ({
+          name: b,
+          color: COMPARE_COLORS[i + 1],
+          metrics: result.benchmark_metrics[b],
+          invested: result.total_invested,
+          finalValue: result.benchmarks[b][result.benchmarks[b].length - 1]?.value ?? 0,
+        })),
+      ],
+      settingsSummary: `${portfolio.map((p) => `${p.symbol} ${p.weight}%`).join(' · ')} | ${settings.startDate} ~ ${settings.endDate} · Initial $${settings.initialAmount.toLocaleString()} · Rebalance: ${settings.rebalance}`,
+      filename: `portfolio-report-${stamp}.html`,
+    });
   };
 
   return (
@@ -130,7 +226,13 @@ export function PortfolioSimulator() {
           )}
           <SavedPortfolioList
             currentPortfolio={portfolio}
-            onLoad={setPortfolio}
+            currentSettings={settings}
+            onLoad={(p, s) => {
+              setPortfolio(p);
+              if (s) setSettings({ ...getDefaultSettings(), ...s });
+            }}
+            onCompare={handleCompare}
+            isComparing={isComparing}
           />
           <SimulationSettings
             settings={settings}
@@ -141,10 +243,24 @@ export function PortfolioSimulator() {
           />
         </div>
 
-        {/* 오른쪽: 결과 */}
+        {/* 오른쪽: 결과 (비교 뷰 우선) */}
         <div className="lg:col-span-2 space-y-4">
-          {result ? (
+          {comparison ? (
+            <ComparisonPanel
+              entries={comparison}
+              settings={settings}
+              onClose={() => setComparison(null)}
+            />
+          ) : result ? (
             <>
+              <div className="flex justify-end">
+                <button
+                  onClick={handleExportSingle}
+                  className="px-3 py-1 text-sm font-mono rounded bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
+                >
+                  EXPORT HTML
+                </button>
+              </div>
               <PerformanceChart
                 result={result}
                 selectedBenchmarks={selectedBenchmarks}

@@ -39,6 +39,14 @@ CAPEX_COMPANIES = [
     ("broadcom", "Broadcom", "보고"),
 ]
 
+# 국내 상장 중국 ETF (파라볼릭 되돌림 페이지) — 지수 중복 없이 4축: CSI300·A50·항셍테크·H주
+CHINA_ETFS = [
+    ("192090.KS", "TIGER 차이나CSI300", "본토 CSI300"),
+    ("169950.KS", "KODEX 중국본토A50", "본토 A50"),
+    ("371160.KS", "TIGER 차이나항셍테크", "항셍테크"),
+    ("099140.KS", "KODEX 차이나H", "홍콩 H주(HSCEI)"),
+]
+
 # 한국 표준시 (UTC+9)
 KST = timezone(timedelta(hours=9))
 
@@ -90,6 +98,8 @@ class MacroService:
         self._kospi_cached_at: Optional[datetime] = None
         self._nasdaq_cache: Optional[dict] = None
         self._nasdaq_cached_at: Optional[datetime] = None
+        self._china_cache: Optional[dict] = None
+        self._china_cached_at: Optional[datetime] = None
 
     def get_dashboard(self) -> dict:
         """대시보드 데이터: 종합 판정 + 카테고리 요약 + 시그널 (KST 06:00 일간 캐시)"""
@@ -227,6 +237,90 @@ class MacroService:
         self._nasdaq_cache = result
         self._nasdaq_cached_at = datetime.now(KST)
         return result
+
+    def get_china_etf(self, force: bool = False) -> dict:
+        """국내 상장 중국 ETF 파라볼릭 되돌림 (ETF별 A차트, KST 06:00 캐시)"""
+        if not force and self._china_cache is not None and _is_cache_valid(self._china_cached_at):
+            return self._china_cache
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = {code: pool.submit(self.fetcher.fetch_daily_max, code)
+                       for code, _, _ in CHINA_ETFS}
+            etfs = [self._compute_china_etf_item(code, name, idx_label,
+                                                 self._points_to_pd(futures[code].result()))
+                    for code, name, idx_label in CHINA_ETFS]
+        result = {"available": any(e["available"] for e in etfs), "etfs": etfs}
+        self._china_cache = result
+        self._china_cached_at = datetime.now(KST)
+        return result
+
+    def _compute_china_etf_item(self, code: str, name: str, index_label: str,
+                                s: Optional[pd.Series]) -> dict:
+        """ETF 1종 파라볼릭 되돌림 — 나스닥 A차트와 동일 규칙 (5년 창, base = 마지막 ≥15% 조정 저점)"""
+        base_info = {"code": code, "name": name, "index": index_label}
+        if s is None or len(s) < 60:
+            return {**base_info, "available": False}
+
+        cutoff = s.index[-1] - pd.DateOffset(years=5)
+        recent = s[s.index >= cutoff]
+        if len(recent) < 10:
+            recent = s
+
+        peak_val = float(recent.max())
+        peak_date = recent.idxmax()
+        current_val = float(recent.iloc[-1])
+        drawdown = round((current_val / peak_val - 1) * 100, 1)
+
+        before = recent.loc[:peak_date]
+        base_date, base_val = self._last_swing_low(before, threshold=0.15)
+        if base_val is None:
+            base_val = float(before.min())
+            base_date = before.idxmin()
+        rise = peak_val - base_val
+
+        def lvl(frac: float) -> float:
+            return round(peak_val - frac * rise, 1)
+
+        retracement = {"peak": round(peak_val, 1), "fib382": lvl(0.382),
+                       "fib50": lvl(0.5), "fib618": lvl(0.618), "base": round(base_val, 1)}
+        retr_pct = round((peak_val - current_val) / rise * 100, 1) if rise > 0 else None
+
+        if drawdown > -10:
+            verdict, vcolor = "고점권 (상승 추세)", "#10b981"
+        elif drawdown > -20:
+            verdict, vcolor = "조정 구간", "#f59e0b"
+        else:
+            verdict, vcolor = "약세 구간 (-20% 돌파)", "#ef4444"
+
+        sma50 = s.rolling(50).mean()
+        sma120 = s.rolling(120).mean()
+        sma200 = s.rolling(200).mean()
+        rsi14 = self.calc.rsi(s, period=14)
+
+        def _at(sr, idx):
+            v = sr.get(idx)
+            return round(float(v), 1) if v is not None and pd.notna(v) else None
+
+        price = [
+            {"date": idx.strftime("%Y-%m-%d"), "value": round(float(v), 1),
+             "sma50": _at(sma50, idx), "sma120": _at(sma120, idx), "sma200": _at(sma200, idx),
+             "rsi": _at(rsi14, idx)}
+            for idx, v in recent.items()
+        ]
+
+        return {
+            **base_info,
+            "available": True,
+            "price": price,
+            "peak": {"date": peak_date.strftime("%Y-%m-%d"), "value": round(peak_val, 1)},
+            "base": {"date": base_date.strftime("%Y-%m-%d"), "value": round(base_val, 1)},
+            "current": round(current_val, 1),
+            "drawdown_pct": drawdown,
+            "retracement": retracement,
+            "retracement_pct": retr_pct,
+            "verdict": verdict,
+            "verdict_color": vcolor,
+        }
 
     def set_kospi_manual(self, credit: str, forced: str) -> dict:
         """코스피 저점 수동입력: 신용잔고 추이 + 반대매매 (KRX 실연동 전)"""
@@ -902,10 +996,16 @@ class MacroService:
             else:
                 st, pts = "가속", 0
             lead_score += pts
+            # 최신 분기가 미발표 회사로 미완결이면 QoQ는 직전 확정 분기 기준 — 기준 시점 명시
+            asof = capex.get("qoq_asof")
+            series0 = (capex.get("total_series") or [{}])[0].get("date")
+            detail = f"합계 ${capex.get('total_latest')}B"
+            if asof and series0 and asof != series0:
+                detail += f" · QoQ {asof} 확정분"
             leading.append({
                 "key": "capex", "label": "빅테크 캐펙스", "status": st,
                 "value": f"QoQ {cap_g:+.0f}%",
-                "detail": f"합계 ${capex.get('total_latest')}B",
+                "detail": detail,
             })
 
         # 1b) 메모리 3사(공급) 캐펙스 YoY — 증설 급팽창은 1~2년 뒤 공급과잉의 전조(역발상),
@@ -1148,12 +1248,18 @@ class MacroService:
 
         # ── 차트용 시계열 ──
         def _with_qoq(pts: list[dict]) -> list[dict]:
-            """시간순 포인트에 직전 대비 변화율(qoq %) 추가. 첫 포인트는 None."""
+            """시간순 포인트에 직전 대비 변화율(qoq %) 추가. 첫 포인트는 None.
+
+            미발표 회사가 있는 분기(missing)는 확정 전이므로 qoq를 붙이지
+            않는다 — 바(합계)는 그대로 표시하되 증가율만 발표 완료까지 보류."""
             out, prev = [], None
             for p in pts:
-                qoq = round((p["value"] / prev - 1) * 100, 1) if prev else None
+                qoq = None
+                if (prev is not None and prev["value"]
+                        and not p.get("missing") and not prev.get("missing")):
+                    qoq = round((p["value"] / prev["value"] - 1) * 100, 1)
                 out.append({**p, "qoq": qoq})
-                prev = p["value"]
+                prev = p
             return out
 
         # 빅테크 캐펙스 분기 추이 (시간순)
@@ -1200,10 +1306,12 @@ class MacroService:
             except (TypeError, ValueError):
                 return None
         # 변화율은 같은 소스(컨트랙트끼리·스팟끼리) 내에서만 계산 — 접합 지점은 None(라인 끊김)
+        # 전망치(proj)는 제외 — 실측처럼 그려지면 가짜 급락/급등으로 읽힘
         def _src_pts(src: dict) -> list[dict]:
             pts = [{"date": _q2d(p.get("period")), "value": p.get("value")}
                    for p in src.get("points", [])
-                   if _q2d(p.get("period")) and p.get("value") is not None]
+                   if _q2d(p.get("period")) and p.get("value") is not None
+                   and not p.get("proj")]
             pts.sort(key=lambda x: x["date"])
             return _with_qoq(pts)
 

@@ -47,6 +47,27 @@ export function LaborHouseholdTab({ data, crisisOverlays = [] }: Props) {
         />
       </TabChartSection>
 
+      {/* 비농업고용 월간 증감 */}
+      <TabChartSection
+        title="Nonfarm Payrolls MoM Change"
+        description={"비농업고용 월간 증감 (PAYEMS)\n• 매월 첫 금요일 발표되는 고용보고서 헤드라인\n• +15만 이상: 견조한 고용\n• 0~10만: 둔화\n• 마이너스: 고용 위축 → 침체 경고\n• 실업률과 달리 구직포기자 착시가 없는 직접 지표\n• 실업률 하락 + 고용 감소 = 참가율 하락 착시 (CIVPART 확인)"}
+      >
+        <MacroLineChart crisisOverlays={crisisOverlays}
+          data={(() => {
+            const rows = toChartData('PAYEMS');
+            return rows.map((r, i) => ({
+              date: r.date,
+              'MoM': i > 0 ? +(((r['PAYEMS'] as number) - (rows[i - 1]['PAYEMS'] as number)).toFixed(0)) : null,
+            }));
+          })()}
+          series={[{ dataKey: 'MoM', color: '#3b82f6', name: '고용 증감 (천 명)', type: 'bar' }]}
+          yAxisFormatter={(v) => `${v}K`}
+          yDomain={[-1000, 1000]}
+          referenceLines={[{ y: 0, color: '#475569', label: '0' }]}
+          height={280}
+        />
+      </TabChartSection>
+
       {/* Sahm Rule */}
       <TabChartSection
         title="Sahm Rule Recession Indicator"

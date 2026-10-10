@@ -99,6 +99,15 @@ def get_nasdaq_bottom(refresh: bool = False):
         raise HTTPException(status_code=500, detail=f"NASDAQ bottom failed: {str(e)}")
 
 
+@router.get("/china-etf")
+def get_china_etf(refresh: bool = False):
+    """국내 상장 중국 ETF 파라볼릭 되돌림 (CSI300·A50·항셍테크·H주, refresh=true 시 즉시 재취득)"""
+    try:
+        return macro_service.get_china_etf(force=refresh)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"China ETF failed: {str(e)}")
+
+
 @router.post("/kospi/manual")
 async def set_kospi_manual(input: KospiManualInput):
     """코스피 저점 수동 입력 (신용잔고 + 반대매매)"""
