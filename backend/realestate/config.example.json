@@ -1,0 +1,36 @@
+{
+  "_README": "이 파일을 config.json으로 복사한 뒤 service_key를 채우세요. config.json은 .gitignore 대상(개인 키·매수밴드 포함).",
+  "service_key": "공공데이터포털(data.go.kr) 아파트매매 실거래가 상세자료 서비스키",
+  "lawd_cd": "11710",
+  "region_name": "서울 송파구",
+  "apt_keyword": "올림픽훼밀리",
+  "naver_complex_no": 610,
+  "compare_regions": { "11650": "서초구", "11680": "강남구", "11350": "노원구" },
+  "start_ym": "200601",
+  "refresh_months": 6,
+  "area_labels": {
+    "84": "31평형 (전용 84㎡)",
+    "117": "41평형 (전용 117㎡)"
+  },
+  "buy_bands": {
+    "_README": "수기 매수밴드 (선택). 없으면 실거래 분포로 자동 생성(auto_bands.py)된다.",
+    "as_of": "2026-01-01",
+    "note": "1차 = 지금 장에서 노릴 급매 범위 · 2차 = 하락 확정 후 기준 · 추격 금지선 위 매수는 피한다",
+    "bands": {
+      "84": { "band1": [0, 0], "band2": [0, 0], "avoid": 0, "note": "" }
+    }
+  },
+  "events": [
+    { "date": "2025-10-15", "label": "10·15 대책" }
+  ],
+  "macro": {
+    "_README": "수기 매크로 코멘트 (선택). 파도 판정은 wave_engine.py가 자동 계산한다.",
+    "as_of": "2026-01-01",
+    "phase": "상승",
+    "phase_pos": 0.25,
+    "summary": ["① 금리 — …", "② 유동성 — …"],
+    "indicators": [
+      { "name": "기준금리", "value": "", "trend": "flat", "signal": "상승", "note": "" }
+    ]
+  }
+}

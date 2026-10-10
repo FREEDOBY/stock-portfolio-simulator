@@ -26,6 +26,9 @@ frontend/dist/
 # IDE
 .vscode/
 .idea/
+
+# Claude Code 로컬 설정 (사용자명·로컬 경로 포함 — 공유 대상 아님)
+.claude/settings.local.json
 *.swp
 *.swo
 
@@ -40,3 +43,18 @@ Thumbs.db
 
 # Vercel
 .vercel
+
+# ── 부동산: 개인정보·비밀키·로컬 데이터 (커밋 금지) ──────────────
+# 개인 자금계획 (청산금·대출·차용 등 금융 정보)
+backend/realestate/funds.json
+# 공공데이터 서비스키 + 개인 매수밴드·매크로 메모 → config.example.json만 공개
+backend/realestate/config.json
+# 추적 중인 관심 단지 목록
+backend/realestate/profiles.json
+# 수집 데이터·캐시 (용량이 크고 재생성 가능)
+backend/realestate/deals.db
+backend/realestate/listings_cache*.json
+backend/realestate/search_cache.json
+
+# 개인 문서 (실명·금융정보 등) — 이 폴더 안에만 두면 커밋되지 않는다
+docs/private/
