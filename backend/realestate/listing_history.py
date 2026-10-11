@@ -168,16 +168,22 @@ def link_relisted(conn=None, complex_no=610):
                  AND first_seen >= ? ORDER BY first_seen""",
             (cx, (datetime.now() - timedelta(days=3)).isoformat())).fetchall()
         for no, g, dong, floor, price, first_seen in new_ones:
+            # 후보: 소멸 확정분 + "이번 수집에서 사라진" 매물(miss>=1).
+            # 호가를 내리며 재등록하면 소멸 확정(2회 미출현)보다 먼저 새 번호가
+            # 등장하므로, gone만 보면 인하를 '신규 매물'로 놓친다.
             old = conn.execute(
                 """SELECT article_no, last_price FROM listing
-                   WHERE complex_no=? AND status='gone' AND g=? AND dong=? AND floor=?
-                     AND article_no != ? AND gone_at >= ?
+                   WHERE complex_no=? AND g=? AND dong=? AND floor=?
+                     AND article_no != ? AND last_seen < ?
+                     AND (status='gone' OR miss >= 1)
+                     AND COALESCE(gone_at, last_seen) >= ?
                      AND ABS(last_price-?) <= ?*0.08
                      AND article_no NOT IN
                          (SELECT prev_article_no FROM listing
                           WHERE prev_article_no IS NOT NULL)
-                   ORDER BY ABS(last_price-?), gone_at DESC LIMIT 1""",
-                (cx, g, dong, floor, no,
+                   ORDER BY ABS(last_price-?), COALESCE(gone_at, last_seen) DESC
+                   LIMIT 1""",
+                (cx, g, dong, floor, no, first_seen,
                  (datetime.now() - timedelta(days=30)).isoformat(),
                  price, price, price)).fetchone()
             if not old:

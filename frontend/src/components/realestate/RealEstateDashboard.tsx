@@ -79,19 +79,23 @@ export function RealEstateDashboard() {
         fetch('/api/realestate/wave').then((r) => r.json()),
         fetch('/api/realestate/region').then((r) => r.json()),
       ]);
-      if (cy.ok) setPhaseRows(cy.rows);
+      // 실패 시 비워야 한다 — 단지를 바꿨는데 이전 단지 값이 남으면 오해를 부른다
+      setPhaseRows(cy.ok ? cy.rows : []);
       if (wv.ok && wv.rows?.length) setWave(wv);
       if (rg.ok && rg.regions?.length) setRegions(rg.regions);
     } catch {
       /* 자동 지표 실패는 치명적이지 않음 */
     }
-    // 네이버 매물 호가 (비공식 API — 실패해도 무시). 갱신 버튼은 캐시 무시하고 재수집.
+    // 네이버 매물 호가 (비공식 API). 단지번호 미연결·차단 시 ok=false → 이전 단지
+    // 매물이 그대로 남지 않도록 null로 비운다. 갱신 버튼은 캐시 무시하고 재수집.
     try {
       const ls = await fetch(
         '/api/realestate/listings' + (forceListings ? '?force=1' : '')
       ).then((r) => r.json());
-      if (ls.ok) setListings(ls);
-    } catch { /* ignore */ }
+      setListings(ls.ok ? ls : null);
+    } catch {
+      setListings(null);
+    }
   }, []);
 
   const doRefresh = useCallback(async (auto: boolean) => {
@@ -304,11 +308,27 @@ export function RealEstateDashboard() {
         </label>
         <span className="flex-1" />
         <button
+          onClick={async () => {
+            setRefreshing(true);
+            setStatusMsg(`${cfg.complex?.name ?? ''} 매물 재수집 중…`);
+            await loadDerived(true);          // ?force=1 — 24시간 캐시 무시
+            setStatusMsg('매물 갱신 완료');
+            setRefreshing(false);
+            setTimeout(() => setStatusMsg(''), 5000);
+          }}
+          disabled={refreshing}
+          className="border border-gray-700 rounded-lg px-3.5 py-1.5 text-[13px] text-slate-200 hover:bg-gray-800 disabled:opacity-50"
+          title="이 단지의 네이버 매물을 지금 바로 다시 수집 (평소엔 하루 1회 자동)"
+        >
+          매물 갱신 (이 단지)
+        </button>
+        <button
           onClick={() => doRefresh(false)}
           disabled={refreshing}
           className="border border-gray-700 rounded-lg px-3.5 py-1.5 text-[13px] text-slate-200 hover:bg-gray-800 disabled:opacity-50"
+          title="국토부 실거래 최근 6개월 재수집 + 이 단지 매물 갱신"
         >
-          최근 6개월 갱신 (3개 구)
+          실거래 갱신 (최근 6개월)
         </button>
         <span className="text-slate-500 text-xs">{statusMsg}</span>
       </div>

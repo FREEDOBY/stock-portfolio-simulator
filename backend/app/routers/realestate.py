@@ -323,14 +323,27 @@ async def set_complex(payload: dict = Body(...)):
                                  (lawd,)).fetchone()[0]
             finally:
                 conn.close()
+            # 임시번호(로컬 검색 전환)면 네이버 단지번호를 한 번 더 찾아본다 —
+            # 검색 차단 때문에 임시로 등록됐을 수 있고, 번호가 붙어야 매물이 수집된다
+            real_no = no
+            if no <= 0:
+                try:
+                    for c in listings.search_complexes(name):
+                        if c["lawdCd"] == lawd and c["name"].replace(" ", "") == name.replace(" ", ""):
+                            real_no = int(c["complexNo"])
+                            break
+                except Exception:  # noqa: BLE001 - 여전히 차단: 임시번호 유지
+                    pass
+
             # 이미 등록된 단지는 저장된 키워드를 보존 (수동 보정이 덮이지 않게)
-            saved = profiles.load()["complexes"].get(str(no))
+            registered = profiles.load()["complexes"]
+            saved = registered.get(str(real_no)) or registered.get(str(no))
             if saved and saved.get("aptKeyword"):
                 kw = saved["aptKeyword"]
             else:
                 kw = profiles.resolve_keyword(name, lawd) if n else name
             prof = profiles.set_active({
-                "complexNo": no, "name": name, "aptKeyword": kw,
+                "complexNo": real_no, "name": name, "aptKeyword": kw,
                 "lawdCd": lawd, "regionName": str(payload.get("address", ""))})
             if n == 0 and not _backfill["running"]:
                 threading.Thread(target=_run_backfill, args=(lawd,), daemon=True).start()
@@ -339,6 +352,37 @@ async def set_complex(payload: dict = Body(...)):
         return await run_in_threadpool(work)
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "msg": str(e)}
+
+
+@router.post("/complex/link")
+async def link_complex(payload: dict = Body(...)):
+    """활성 단지에 네이버 단지번호를 수동 연결 — 검색이 차단돼도 매물을 켤 수 있다.
+    입력: {"value": "111515"} 또는 네이버 단지 URL(.../complexes/111515?...)."""
+    import re
+    raw = str(payload.get("value", "")).strip()
+    m = re.search(r"complexes/(\d+)", raw) or re.fullmatch(r"(\d{2,9})", raw)
+    if not m:
+        return {"ok": False, "msg": "단지번호를 찾을 수 없습니다 (숫자 또는 네이버 단지 URL)"}
+    new_no = int(m.group(1))
+
+    def work():
+        data = profiles.load()
+        cur = data["complexes"][data["active"]]
+        old_key = str(cur["complexNo"])
+        prof = {**cur, "complexNo": new_no}
+        if old_key != str(new_no):
+            data["complexes"].pop(old_key, None)   # 임시번호 프로필 정리
+            data["complexes"][str(new_no)] = prof
+            data["active"] = str(new_no)
+            profiles.save(data)
+        # 연결 즉시 매물 수집 (캐시 비어 있으므로 바로 네이버 호출)
+        stats = listings.get_listing_stats(force=True, complex_no=new_no)
+        return {"ok": True, "complex": prof, "total": stats.get("total", 0)}
+
+    try:
+        return await run_in_threadpool(work)
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "msg": f"연결했지만 매물 수집 실패: {e}"}
 
 
 @router.get("/backfill-status")

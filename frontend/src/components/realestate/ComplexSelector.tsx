@@ -16,6 +16,7 @@ export function ComplexSelector({ current, backfill: initialBackfill, onSwitched
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<ComplexSearchResult[]>([]);
   const [msg, setMsg] = useState('');
+  const [linkVal, setLinkVal] = useState('');
   const [backfill, setBackfill] = useState<BackfillStatus | null>(initialBackfill ?? null);
   const pollRef = useRef<number | null>(null);
   const acRef = useRef<number | null>(null);   // 자동완성 디바운스
@@ -86,6 +87,28 @@ export function ComplexSelector({ current, backfill: initialBackfill, onSwitched
     setSearching(false);
   };
 
+  /* 네이버 검색이 차단돼 임시번호로 등록된 단지에 번호를 수동 연결 */
+  const link = async () => {
+    const v = linkVal.trim();
+    if (!v) return;
+    setMsg('단지번호 연결 + 매물 수집 중…');
+    try {
+      const r = await fetch('/api/realestate/complex/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: v }),
+      }).then((x) => x.json());
+      if (r.ok) {
+        setMsg(`연결 완료 — 매물 ${r.total}건 수집`);
+        setLinkVal('');
+        await onSwitched();
+        setTimeout(() => setMsg(''), 5000);
+      } else setMsg(r.msg || '연결 실패');
+    } catch (e) {
+      setMsg(String(e));
+    }
+  };
+
   const pick = async (c: ComplexSearchResult) => {
     setOpen(false);
     setMsg(`${c.name} 전환 중…`);
@@ -134,6 +157,28 @@ export function ComplexSelector({ current, backfill: initialBackfill, onSwitched
         )}
         {msg && !backfill?.running && <span className="text-xs text-slate-400">{msg}</span>}
       </div>
+
+      {/* 매물 미연결 단지: 네이버 단지번호를 직접 붙여 매물 기능 켜기 */}
+      {current && current.complexNo <= 0 && (
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
+          <span className="text-xs text-amber-400">
+            ⚠ {current.name}은 네이버 단지번호 미연결 — 매물 기능 꺼짐
+          </span>
+          <input
+            value={linkVal}
+            onChange={(e) => setLinkVal(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && link()}
+            placeholder="네이버 단지 URL 또는 번호 붙여넣기"
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-xs text-slate-100 w-72 placeholder:text-slate-500"
+          />
+          <button
+            onClick={link}
+            className="border border-amber-700 rounded-lg px-3 py-1 text-xs text-amber-300 hover:bg-gray-800"
+          >
+            연결
+          </button>
+        </div>
+      )}
 
       {open && results.length > 0 && (
         <div className="absolute z-20 mt-1 w-[420px] max-h-72 overflow-y-auto bg-gray-900 border border-gray-700 rounded-lg shadow-xl">

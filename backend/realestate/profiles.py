@@ -50,8 +50,17 @@ def save(data):
 
 
 def get_active():
+    """활성 단지 프로필. active가 가리키는 프로필이 사라졌으면 첫 단지로 되돌린다
+    (프로필을 직접 편집·삭제했을 때 대시보드 전체가 죽지 않도록)."""
     data = load()
-    return data["complexes"][data["active"]]
+    prof = data["complexes"].get(data.get("active", ""))
+    if prof is None:
+        if not data["complexes"]:
+            data = _seed()
+        data["active"] = next(iter(data["complexes"]))
+        save(data)
+        prof = data["complexes"][data["active"]]
+    return prof
 
 
 def set_active(profile: dict):
