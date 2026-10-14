@@ -1,6 +1,7 @@
 {
-  "_README": "이 파일을 config.json으로 복사한 뒤 service_key를 채우세요. config.json은 .gitignore 대상(개인 키·매수밴드 포함).",
-  "service_key": "공공데이터포털(data.go.kr) 아파트매매 실거래가 상세자료 서비스키",
+  "_README": "이 파일을 config.json으로 복사해서 쓰세요. 서비스키는 여기 말고 .env의 DATA_GO_KR_KEY(또는 KOFIA_API_KEY)에 넣습니다. config.json 자체도 .gitignore 대상(개인 매수밴드·단지 정보 포함).",
+  "service_key": "",
+  "_service_key_note": "비워 두세요. .env가 없는 환경에서만 폴백으로 읽힙니다 — 공공데이터포털(data.go.kr) 아파트매매 실거래가 상세자료 서비스키.",
   "lawd_cd": "11710",
   "region_name": "서울 송파구",
   "apt_keyword": "올림픽훼밀리",

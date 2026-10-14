@@ -10,6 +10,9 @@ from datetime import date as _date
 
 import requests
 import yfinance as yf
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 

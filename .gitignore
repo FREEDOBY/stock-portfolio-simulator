@@ -35,6 +35,9 @@ frontend/dist/
 
 # 로컬 전용 메모리·결정 로그 (개인 금융·법적 정보 포함 — 절대 커밋 금지)
 CLAUDE.local.md
+# .local.* 는 전부 로컬 전용으로 약속한다 (새 메모가 생겨도 기본 차단)
+*.local.md
+*.local.json
 *.swp
 *.swo
 
@@ -42,10 +45,15 @@ CLAUDE.local.md
 .DS_Store
 Thumbs.db
 
-# Environment
+# Environment — 모든 비밀키는 .env 한 곳에만 둔다 (.env.example이 목록 역할)
 .env
-.env.local
-.env.production.local
+.env.*
+!.env.example
+
+# 편집·복사 중 생기는 사본 (원본이 비밀이면 사본도 비밀이다)
+*.bak
+*.orig
+*~
 
 # Vercel
 .vercel
@@ -58,9 +66,17 @@ backend/realestate/config.json
 # 추적 중인 관심 단지 목록
 backend/realestate/profiles.json
 # 수집 데이터·캐시 (용량이 크고 재생성 가능)
-backend/realestate/deals.db
-backend/realestate/listings_cache*.json
-backend/realestate/search_cache.json
+# 개별 파일명 대신 확장자로 막는다 — 새 캐시·DB가 생겨도 자동으로 차단되도록
+backend/realestate/*.db
+backend/realestate/*.db-journal
+backend/realestate/*cache*.json
 
 # 개인 문서 (실명·금융정보 등) — 이 폴더 안에만 두면 커밋되지 않는다
 docs/private/
+# 내보낸 리포트·스크린샷 (매물가·자금 수치가 그대로 찍힌다)
+reports/
+exports/
+*.local.html
+
+# 화이트리스트: 위 패턴에 걸리지만 공개해야 하는 템플릿
+!backend/realestate/*.example.json

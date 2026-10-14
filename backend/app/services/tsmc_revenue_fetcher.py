@@ -5,14 +5,21 @@ YoY 증가율의 '둔화 시작'이 빅테크 캐펙스(분기)보다 빠른 선
 키 불필요 · EDGAR는 User-Agent 필수 · 6시간 캐시.
 """
 import logging
+import os
 import re
 import time
 
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-_UA = {"User-Agent": "stock-portfolio-simulator jesuk17.yeon@gmail.com"}
+# SEC EDGAR는 User-Agent에 연락처를 요구한다. 개인 이메일이 저장소에 남지 않도록
+# 환경변수(EDGAR_CONTACT)로 주입하고, 없으면 익명 기본값을 쓴다.
+_EDGAR_CONTACT = os.getenv("EDGAR_CONTACT", "contact@example.com")
+_UA = {"User-Agent": f"stock-portfolio-simulator ({_EDGAR_CONTACT})"}
 _SUBMISSIONS = "https://data.sec.gov/submissions/CIK0001046179.json"
 _ARCHIVE = "https://www.sec.gov/Archives/edgar/data/1046179"
 _CACHE_TTL = 6 * 3600

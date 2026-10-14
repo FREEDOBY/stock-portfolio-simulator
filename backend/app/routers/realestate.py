@@ -125,7 +125,7 @@ def _config():
     prof = profiles.get_active()
     is_olhwe = str(prof["complexNo"]) == "610"
     return {
-        "hasKey": bool(cfg.get("service_key", "").strip()),
+        "hasKey": bool(fetcher.get_service_key(cfg)),
         "aptKeyword": prof.get("aptKeyword", ""),
         "regionName": prof.get("regionName", ""),
         "areaLabels": cfg.get("area_labels", {}) if is_olhwe else {},

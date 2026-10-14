@@ -11,6 +11,7 @@ DB에는 해당 구의 전체 거래가 쌓인다.
 """
 
 import json
+import os
 import sqlite3
 import sys
 import time
@@ -19,10 +20,27 @@ from datetime import date
 from pathlib import Path
 
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "config.json"
 DB_PATH = BASE_DIR / "deals.db"
+
+
+def get_service_key(cfg=None):
+    """공공데이터포털 서비스키. .env를 우선으로 보고 config.json은 폴백.
+
+    같은 포털 키를 .env(KOFIA_API_KEY)와 config.json(service_key) 두 곳에 두면
+    키 교체 때 한쪽만 바뀌어 조용히 깨진다. 보관처를 .env로 모으되,
+    기존 config.json만 채워둔 설치본도 그대로 동작하도록 폴백을 남긴다.
+    """
+    env = (os.getenv("DATA_GO_KR_KEY") or os.getenv("KOFIA_API_KEY") or "").strip()
+    if env:
+        return env
+    cfg = cfg if cfg is not None else load_config()
+    return (cfg.get("service_key") or "").strip()
 API_URL = "https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev"
 NUM_OF_ROWS = 1000
 
@@ -196,9 +214,12 @@ def save_month(conn, ym, rows, sgg):
 def sync_months(months, progress_cb=None, lawd_cd=None):
     """지정한 월 목록을 순서대로 수집. progress_cb(done, total, ym, count)."""
     cfg = load_config()
-    key = cfg.get("service_key", "").strip()
+    key = get_service_key(cfg)
     if not key:
-        raise RuntimeError("config.json의 service_key가 비어 있습니다.")
+        raise RuntimeError(
+            ".env의 DATA_GO_KR_KEY(또는 KOFIA_API_KEY)가 비어 있습니다. "
+            "(config.json의 service_key도 폴백으로 읽습니다)"
+        )
     lawd = lawd_cd or cfg["lawd_cd"]
     conn = get_conn()
     sess = requests.Session()
