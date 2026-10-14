@@ -1,6 +1,9 @@
 # 로컬 축적 데이터 (TrendForce 스팟 히스토리 등)
 backend/data/
 
+# 임시 산출물·덤프 (재생성 가능)
+temps/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -29,6 +32,9 @@ frontend/dist/
 
 # Claude Code 로컬 설정 (사용자명·로컬 경로 포함 — 공유 대상 아님)
 .claude/settings.local.json
+
+# 로컬 전용 메모리·결정 로그 (개인 금융·법적 정보 포함 — 절대 커밋 금지)
+CLAUDE.local.md
 *.swp
 *.swo
 

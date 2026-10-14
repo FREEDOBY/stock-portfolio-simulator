@@ -101,8 +101,13 @@ def _save_funds(data: dict):
             if it.get(k):
                 row[k] = str(it[k])
         clean.append(row)
+    # 경고 문구는 UI 편집 대상이 아니므로 기존 값을 보존한다
+    warnings = data.get("warnings")
+    if warnings is None:
+        warnings = (_load_funds() or {}).get("warnings", [])
     out = {"as_of": date.today().isoformat(),
-           "costs_note": data.get("costs_note", ""), "items": clean}
+           "costs_note": data.get("costs_note", ""),
+           "warnings": warnings, "items": clean}
     FUNDS_PATH.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n",
                           encoding="utf-8")
     return out
@@ -137,15 +142,15 @@ def _config():
 
 def _deals():
     prof = profiles.get_active()
-    keyword = prof.get("aptKeyword", "")
+    clause, param = profiles.name_clause(prof.get("aptKeyword", ""))
     conn = fetcher.get_conn()
     try:
         rows = conn.execute(
-            """SELECT deal_date, deal_ymd, apt_nm, exclu_ar, amount, floor,
-                      apt_dong, dealing_gbn, cdeal_type, cdeal_day, rgst_date, umd_nm
-               FROM deals WHERE sgg = ? AND REPLACE(apt_nm,' ','') LIKE ?
-               ORDER BY deal_date""",
-            (prof["lawdCd"], f"%{keyword.replace(' ', '')}%"),
+            f"""SELECT deal_date, deal_ymd, apt_nm, exclu_ar, amount, floor,
+                       apt_dong, dealing_gbn, cdeal_type, cdeal_day, rgst_date, umd_nm
+                FROM deals WHERE sgg = ? AND {clause}
+                ORDER BY deal_date""",
+            (prof["lawdCd"], param),
         ).fetchall()
         log = conn.execute(
             "SELECT MAX(fetched_at), COUNT(*) FROM fetch_log WHERE sgg = ?",

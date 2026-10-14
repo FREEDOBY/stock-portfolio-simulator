@@ -73,6 +73,18 @@ def set_active(profile: dict):
     return profile
 
 
+def name_clause(keyword: str):
+    """단지명 키워드 → (SQL 조건, 파라미터).
+
+    기본은 부분일치지만, 이름이 포함관계인 단지가 섞일 때가 있다
+    ('더샵센트럴시티' ⊂ '동탄역더샵센트럴시티2차'). 키워드를 '='로 시작하면
+    정확 일치로 전환해 그 단지만 집계한다."""
+    kw = (keyword or "").replace(" ", "")
+    if kw.startswith("="):
+        return "REPLACE(apt_nm,' ','') = ?", kw[1:]
+    return "REPLACE(apt_nm,' ','') LIKE ?", f"%{kw}%"
+
+
 def resolve_keyword(name: str, lawd_cd: str) -> str:
     """네이버 단지명 → 국토부 apt_nm 매칭 키워드.
 

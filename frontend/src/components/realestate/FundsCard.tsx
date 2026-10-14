@@ -126,6 +126,17 @@ export function FundsCard({ funds: initial, gLabel, listings }: Props) {
         </p>
         {err && <p className="text-xs text-red-400 mb-2">⚠ {err}</p>}
 
+        {/* 집행 순서·조건 경고 — 어기면 세금·권리에서 손해가 큰 항목 */}
+        {!!view.warnings?.length && (
+          <div className="mb-3 px-3 py-2 rounded-lg border border-amber-700 bg-amber-900/20">
+            {view.warnings.map((w, i) => (
+              <div key={i} className="text-xs text-amber-300 leading-relaxed">
+                ⚠ {w}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-[13px]">
             <thead>

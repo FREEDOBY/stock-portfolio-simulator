@@ -36,14 +36,16 @@ def build(keyword: str, lawd_cd: str):
     d1095 = (today - timedelta(days=1095)).isoformat()   # 희소 단지 폴백용 3년
     conn = fetcher.get_conn()
     try:
+        import profiles
+        clause, param = profiles.name_clause(keyword)
         rows = conn.execute(
-            """SELECT deal_date, CAST(exclu_ar AS INT), amount FROM deals
-               WHERE sgg = ? AND REPLACE(apt_nm, ' ', '') LIKE ?
-                 AND (cdeal_type IS NULL OR cdeal_type != '해제')
-                 AND (dealing_gbn IS NULL OR dealing_gbn != '직거래')
-                 AND exclu_ar > 0 AND deal_date >= ?
-               ORDER BY deal_date""",
-            (lawd_cd, f"%{keyword.replace(' ', '')}%", d1095)).fetchall()
+            f"""SELECT deal_date, CAST(exclu_ar AS INT), amount FROM deals
+                WHERE sgg = ? AND {clause}
+                  AND (cdeal_type IS NULL OR cdeal_type != '해제')
+                  AND (dealing_gbn IS NULL OR dealing_gbn != '직거래')
+                  AND exclu_ar > 0 AND deal_date >= ?
+                ORDER BY deal_date""",
+            (lawd_cd, param, d1095)).fetchall()
     finally:
         conn.close()
 

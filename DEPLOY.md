@@ -1,15 +1,25 @@
 # 배포 가이드 — 프론트(Vercel) + 백엔드(Render), 둘 다 무료
 
-이 프로젝트는 **프론트엔드는 Vercel**, **백엔드(FastAPI)는 Render** 로 분리 배포한다.
-Render 무료 플랜은 함수 실행 시간 제한이 없어 `yfinance`/`pykrx` 백테스트가 타임아웃 없이 동작한다.
+> ## ⛔ 2026-10 배포 중단 — 현재 로컬 전용
+>
+> Vercel 프로젝트와 Render 웹서비스를 **모두 삭제**했다 (두 주소 다 404 확인).
+> 외부에 떠 있는 인스턴스는 없다. 개발·사용은 루트의 **`start-agent.bat`** 로
+> 로컬에서만 한다 (백엔드 8000 / 프론트 5173, 기존 프로세스 자동 종료 후 재시작).
+>
+> 아래 문서는 **재배포가 필요해질 때를 위한 기록**으로 보존한다.
+> 다시 올릴 경우 주의할 점:
+> - `backend/realestate/`의 `config.json`·`funds.json`·`profiles.json`·`deals.db`는
+>   gitignore 대상이라 배포본에 없다 → 부동산 API는 동작하지 않는다.
+>   개인 재무·매수 계획이 들어 있으므로 **공개 배포에 포함시키지 말 것**.
+> - FRED API 키는 Render 환경변수에 있었다 → 삭제 후 **키 재발급 권장**.
 
-## 실제 배포 주소
+## 종전 배포 주소 (현재 모두 삭제됨)
 
-| 구분 | URL |
-|------|-----|
-| 프론트엔드 (Vercel) | https://stock-portfolio-simulator-six.vercel.app |
-| 백엔드 (Render) | https://stock-portfolio-simulator-api.onrender.com |
-| 백엔드 API 문서 | https://stock-portfolio-simulator-api.onrender.com/docs |
+| 구분 | URL | 상태 |
+|------|-----|------|
+| 프론트엔드 (Vercel) | https://stock-portfolio-simulator-six.vercel.app | ❌ 404 |
+| 백엔드 (Render) | https://stock-portfolio-simulator-api.onrender.com | ❌ 404 |
+| 백엔드 API 문서 | https://stock-portfolio-simulator-api.onrender.com/docs | ❌ 404 |
 
 ## 아키텍처
 

@@ -63,6 +63,7 @@ export interface FundsItem {
 export interface Funds {
   as_of: string;
   costs_note?: string;
+  warnings?: string[];   // 자금 집행 시 반드시 지켜야 할 순서·조건 (카드 상단 경고)
   items: FundsItem[];
 }
 

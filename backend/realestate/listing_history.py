@@ -224,13 +224,14 @@ def match_sold(conn=None, complex_no=610):
         for no, g, dong, floor, price, gone_at in gone:
             d0 = (datetime.fromisoformat(gone_at) - timedelta(days=30)).date().isoformat()
             d1 = (datetime.fromisoformat(gone_at) + timedelta(days=90)).date().isoformat()
+            clause, param = profiles.name_clause(kw)
             cands = conn.execute(
-                """SELECT deal_date, amount, floor, apt_dong FROM deals
-                   WHERE apt_nm LIKE ? AND CAST(exclu_ar AS INT) = ?
-                     AND deal_date BETWEEN ? AND ?
-                     AND (cdeal_type IS NULL OR cdeal_type != '해제')
-                     AND ABS(amount - ?) <= ? * 0.03""",
-                (f"%{kw}%", g, d0, d1, price, price)).fetchall()
+                f"""SELECT deal_date, amount, floor, apt_dong FROM deals
+                    WHERE {clause} AND CAST(exclu_ar AS INT) = ?
+                      AND deal_date BETWEEN ? AND ?
+                      AND (cdeal_type IS NULL OR cdeal_type != '해제')
+                      AND ABS(amount - ?) <= ? * 0.03""",
+                (param, g, d0, d1, price, price)).fetchall()
             fr = _floor_range(floor)
             best = None
             for dd, amt, fl, ddong in cands:
