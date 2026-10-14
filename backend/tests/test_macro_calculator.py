@@ -56,6 +56,33 @@ class TestYoY:
         result = calc.yoy_percent(s)
         assert result.notna().sum() == 0  # 모두 NaN
 
+    def test_yoy_skips_missing_month(self, calc):
+        """발표가 거른 달이 있어도 달력 기준 12개월 전과 비교한다.
+
+        2025-10은 셧다운으로 BLS가 CPI를 발표하지 않아 FRED에 값이 없다.
+        위치 기반 pct_change(12)는 이때 13개월 전과 비교해 YoY를 부풀린다.
+        """
+        idx = pd.date_range("2025-01", periods=24, freq="ME")
+        s = pd.Series(range(100, 124), index=idx, dtype=float)
+        s = s.drop(pd.Timestamp("2025-10-31"))  # 결측월
+
+        result = calc.yoy_percent(s)
+
+        # 2026-09는 2025-09(=108)와 비교해야 한다 (109가 아니라)
+        sep26, sep25 = pd.Timestamp("2026-09-30"), pd.Timestamp("2025-09-30")
+        expected = (s[sep26] / s[sep25] - 1) * 100
+        assert abs(result[sep26] - expected) < 1e-9
+
+        # 12개월 전이 결측인 달은 계산 불가 → NaN (그럴듯한 값으로 채우지 않는다)
+        assert pd.isna(result[pd.Timestamp("2026-10-31")])
+
+    def test_yoy_falls_back_for_non_monthly(self, calc):
+        """한 달에 여러 관측이 있는 계열(일간 등)은 기존 위치 기반을 유지한다."""
+        idx = pd.date_range("2025-01-01", periods=400, freq="D")
+        s = pd.Series(range(100, 500), index=idx, dtype=float)
+        result = calc.yoy_percent(s)
+        assert abs(result.iloc[-1] - (s.iloc[-1] / s.iloc[-13] - 1) * 100) < 1e-9
+
 
 class TestSMA:
     """이동평균 계산"""

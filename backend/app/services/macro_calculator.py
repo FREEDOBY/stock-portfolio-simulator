@@ -28,12 +28,31 @@ class MacroCalculator:
         return mom_series.diff()
 
     def yoy_percent(self, series: pd.Series) -> pd.Series:
-        """연간 변화율 (YoY%) 계산
+        """연간 변화율 (YoY%) 계산 — 월간 계열은 달력 기준으로 12개월 전과 비교
 
         @implements REQ-003, REQ-013
+
+        pct_change(12)는 '12칸 앞'이라 위치 기반이다. 발표가 거른 달이 있으면
+        그 달의 행이 통째로 빠져 12칸 앞이 13개월 전을 가리키고 YoY가 왜곡된다.
+        실제로 2025-10은 셧다운으로 BLS가 CPI·고용을 발표하지 않아 FRED 값이
+        결측이고, 이 때문에 2026-09 CPI YoY가 +3.72%(정상) 대신 2025-08과 비교한
+        +4.02%로 계산됐다. 0.30%p 과대이고, 하필 긴축 임계(4.0%) 바로 위다.
+
+        달력 기준으로 맞추면 12개월 전이 결측인 달은 NaN이 된다 — 계산할 수 없는
+        값을 그럴듯한 숫자로 채우지 않는 것이 맞다.
         """
         if len(series) < 13:
             return pd.Series([np.nan] * len(series), index=series.index, dtype=float)
+
+        idx = series.index
+        if isinstance(idx, pd.DatetimeIndex):
+            months = idx.to_period("M")
+            # 한 달에 두 관측 이상이면 월간 계열이 아니다 → 기존 위치 기반으로
+            if not months.has_duplicates:
+                by_month = pd.Series(series.to_numpy(), index=months)
+                prev = by_month.reindex(months - 12).to_numpy()
+                return (series / prev - 1) * 100
+
         return series.pct_change(periods=12) * 100
 
     # ─── 이동평균 ───

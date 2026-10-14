@@ -37,10 +37,9 @@ THRESHOLDS = {
     "high_rate_months": 6,       #   6개월 유지
     "qt_drain": 0.0,             # 연준 총자산(WALCL) YoY < 0 (QT 진행 — 2018형)
     "cpi_hot": 4.0,              # CPI YoY ≥ 4% 가
-    "cpi_hot_months": 3,         #   3개월 지속 — 연준 대응(인상)이 강제되는 상황을 대응 이전에 선행
+    "cpi_hot_months": 3,         #   3개월 지속 → 연준 대응 강제 국면. 대응(인상) 이전에 선행
                                  #   (2021-06부터 점등해 실제 인상 시작 9개월 선행. 1996 이후
                                  #    발생 구간은 2005-06·2008·2021-23뿐이라 오탐 위험 낮음)
-    "cpi_hot": 4.0,              # CPI YoY ≥ 4% 3개월 지속 → 연준 대응 강제 국면 (부분)
     "cpi_very_hot": 6.0,         # CPI YoY ≥ 6% 3개월 지속 → 만점 (1973·2021형 선행)
     # 축 2 · 버블형
     "buffett_ext_hi": 20.0,      # 5년 평균 대비 +20% → 만점
@@ -191,6 +190,16 @@ class BearMarketRiskEngine:
 
         df = pd.DataFrame(cols)
 
+        # 변화율은 ffill '이전' 레벨에서 계산한다.
+        # 전파된 레벨로 YoY를 구하면 분자만 멈춘 채 분모가 흘러가 없는 추세를 만든다
+        # (2026-08 M2를 9·10월로 전파 → YoY가 +5.66% → +5.26% → +4.91%로 가짜 둔화).
+        # YoY를 먼저 구한 뒤 그 값을 전파하면 "마지막으로 알려진 변화율 유지"가 되어
+        # 의미가 맞다.
+        yoy_src = {}
+        for k in ("m2", "cpi", "walcl"):
+            if k in df:
+                yoy_src[f"{k}_yoy"] = df[k].pct_change(12, fill_method=None) * 100
+
         # 발표 지연 전파: 시리즈별 끝 시점이 달라 union 인덱스 꼬리가 NaN이 되므로
         # 결합 후에 ffill. 분기 FRED는 '분기 시작월' 라벨(2026-Q1 = 2026-01)이라
         # 분기 3개월 + 발표 지연 ~3개월 = 최대 7개월 전파 필요.
@@ -203,13 +212,9 @@ class BearMarketRiskEngine:
             if k in df:
                 df[k] = df[k].ffill(limit=lim)
 
-        # 파생 컬럼
-        if "m2" in df:
-            df["m2_yoy"] = df["m2"].pct_change(12, fill_method=None) * 100
-        if "cpi" in df:
-            df["cpi_yoy"] = df["cpi"].pct_change(12, fill_method=None) * 100
-        if "walcl" in df:
-            df["walcl_yoy"] = df["walcl"].pct_change(12, fill_method=None) * 100
+        # 파생 컬럼 — 변화율은 레벨과 같은 한도로 전파
+        for col, s in yoy_src.items():
+            df[col] = s.ffill(limit=2)
         if "ncbcel" in df and "gdp" in df:
             # NCBCEL 백만달러 / GDP 십억달러 → /1000 (macro_service 버핏지표와 동일 산식)
             df["buffett"] = df["ncbcel"] / 1000 / df["gdp"] * 100
