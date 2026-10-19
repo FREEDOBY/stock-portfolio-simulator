@@ -81,11 +81,10 @@ def _save_funds(data: dict):
         if not name:
             raise ValueError("항목명이 비어 있는 행이 있습니다")
         try:
-            amount = round(float(it.get("amount", 0)), 2)
+            # 음수 허용 — 성공보수·양도세는 가용자금에서 빠지는 항목으로 음수로 적는다
+            amount = round(float(it.get("amount", 0)), 4)
         except (TypeError, ValueError):
             raise ValueError(f"'{name}'의 금액이 숫자가 아닙니다")
-        if amount < 0:
-            raise ValueError(f"'{name}'의 금액이 음수입니다")
         row = {"name": name, "amount": amount,
                "when": str(it.get("when", "")).strip()}
         for k in ("rate", "term_years"):
@@ -97,9 +96,13 @@ def _save_funds(data: dict):
                     raise ValueError(f"'{name}'의 {k}가 숫자가 아닙니다")
                 if v > 0:
                     row[k] = v
-        for k in ("link", "note"):
+        for k in ("link", "note", "owner", "stage"):
             if it.get(k):
                 row[k] = str(it[k])
+        # 불리언 플래그 — flex(끝자리 쪼개기 허용) / off(합계·대금구조에서 제외)
+        for k in ("flex", "off"):
+            if it.get(k):
+                row[k] = True
         clean.append(row)
     # 경고 문구는 UI 편집 대상이 아니므로 기존 값을 보존한다
     warnings = data.get("warnings")
@@ -142,7 +145,7 @@ def _config():
 
 def _deals():
     prof = profiles.get_active()
-    clause, param = profiles.name_clause(prof.get("aptKeyword", ""))
+    clause, params = profiles.name_clause(prof.get("aptKeyword", ""))
     conn = fetcher.get_conn()
     try:
         rows = conn.execute(
@@ -150,7 +153,7 @@ def _deals():
                        apt_dong, dealing_gbn, cdeal_type, cdeal_day, rgst_date, umd_nm
                 FROM deals WHERE sgg = ? AND {clause}
                 ORDER BY deal_date""",
-            (prof["lawdCd"], param),
+            (prof["lawdCd"], *params),
         ).fetchall()
         log = conn.execute(
             "SELECT MAX(fetched_at), COUNT(*) FROM fetch_log WHERE sgg = ?",
@@ -359,16 +362,42 @@ async def set_complex(payload: dict = Body(...)):
         return {"ok": False, "msg": str(e)}
 
 
+def _complex_no_from_map(raw: str):
+    """네이버 지도 URL의 layer 파라미터에서 단지번호를 꺼낸다.
+
+    단지를 클릭해도 주소는 /map?... 인 채로 남고, 선택된 단지는 layer에
+    lz-string(compressToEncodedURIComponent)으로 압축된 JSON으로 들어간다:
+        [{"id":"complex_detail","params":{"complexId":154}, ...}]
+    사용자가 주소창을 그대로 복사해 붙여도 연결되도록 여기서 풀어준다.
+    """
+    import re
+    m = re.search(r"[?&]layer=([^&]+)", raw)
+    if not m:
+        return None
+    try:
+        import lzstring
+        decoded = lzstring.LZString().decompressFromEncodedURIComponent(m.group(1))
+    except Exception:  # noqa: BLE001 - 라이브러리 없음·포맷 변경 → 수동 입력으로 폴백
+        return None
+    if not decoded:
+        return None
+    hit = re.search(r'"complexId"\s*:\s*(\d+)', decoded)
+    return int(hit.group(1)) if hit else None
+
+
 @router.post("/complex/link")
 async def link_complex(payload: dict = Body(...)):
     """활성 단지에 네이버 단지번호를 수동 연결 — 검색이 차단돼도 매물을 켤 수 있다.
     입력: {"value": "111515"} 또는 네이버 단지 URL(.../complexes/111515?...)."""
     import re
     raw = str(payload.get("value", "")).strip()
-    m = re.search(r"complexes/(\d+)", raw) or re.fullmatch(r"(\d{2,9})", raw)
-    if not m:
-        return {"ok": False, "msg": "단지번호를 찾을 수 없습니다 (숫자 또는 네이버 단지 URL)"}
-    new_no = int(m.group(1))
+    m = (re.search(r"complexes?/(\d+)", raw)          # fin/new.land 단지 상세
+         or re.search(r"[?&]complexNo=(\d+)", raw)    # 지도에서 단지 선택 시 쿼리
+         or re.fullmatch(r"(\d{2,9})", raw))          # 번호만 입력
+    new_no = int(m.group(1)) if m else _complex_no_from_map(raw)
+    if not new_no:
+        return {"ok": False,
+                "msg": "단지번호를 찾을 수 없습니다 — 네이버 단지 URL이나 지도 URL, 또는 번호를 넣으세요"}
 
     def work():
         data = profiles.load()
